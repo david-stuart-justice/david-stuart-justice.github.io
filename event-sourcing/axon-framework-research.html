@@ -1,0 +1,1338 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Axon Framework — Research Notes</title>
+  <link rel="stylesheet" href="styles.css">
+</head><body>
+<main class="shell">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="eyebrow">Personal Research &amp; Exploration</div>
+    <h1>Axon Framework Research Notes</h1>
+    <p class="lead">
+      Event sourcing and CQRS with Spring Boot and PostgreSQL, without Axon Server. This document covers the framework's core concepts, implementation patterns, and trade-offs as explored in discussion. It is not a team decision, ADR, or formal recommendation.
+    </p>
+    <div class="pill-row">
+      <span class="pill">Status: Exploration</span>
+      <span class="pill">Framework: Axon 4.10</span>
+      <span class="pill">Stack: Spring Boot 4 · Java 25 · PostgreSQL</span>
+      <span class="pill">Deploy: EKS · Helm · GitHub Actions</span>
+      <span class="pill">Build: Gradle</span>
+      <span class="pill">Date: June 2026</span>
+    </div>
+  </section>
+
+  <!-- TOC -->
+  <nav class="toc" id="toc">
+    <div class="toc-title">Contents</div>
+    <ul class="toc-list">
+      <li><a href="#context" class="toc-link">Context</a></li>
+      <li><a href="#what-axon-provides" class="toc-link">What Axon Provides</a></li>
+      <li><a href="#setup" class="toc-link">Setup Without Axon Server</a></li>
+      <li><a href="#aggregate" class="toc-link">The Aggregate — Write Side</a></li>
+      <li><a href="#event-store" class="toc-link">Event Store Schema</a></li>
+      <li><a href="#commands-api" class="toc-link">Dispatching Commands from the API</a></li>
+      <li><a href="#read-side" class="toc-link">Read Side — Projections</a></li>
+      <li><a href="#query-handling" class="toc-link sub">Query Handling</a></li>
+      <li><a href="#replay" class="toc-link">Replay Options</a></li>
+      <li><a href="#snapshotting" class="toc-link sub">Snapshotting</a></li>
+      <li><a href="#outbox" class="toc-link">Built-in Outbox Behaviour</a></li>
+      <li><a href="#audit-trail" class="toc-link">Audit Trail — Full Payloads</a></li>
+      <li><a href="#business-rules" class="toc-link">Business Rules and State Guards</a></li>
+      <li><a href="#sagas" class="toc-link">Sagas — Multi-step Processes</a></li>
+      <li><a href="#independent-status" class="toc-link">Independent Read Model Statuses</a></li>
+      <li><a href="#kinesis" class="toc-link">Kinesis Integration</a></li>
+      <li><a href="#kafka-alternative" class="toc-link">Kafka — Alternative Approach</a></li>
+      <li><a href="#trade-offs" class="toc-link">Trade-offs Summary</a></li>
+      <li><a href="#references" class="toc-link">References</a></li>
+    </ul>
+  </nav>
+
+  <!-- CONTEXT -->
+  <section class="section card" id="context">
+    <div class="kicker">Context</div>
+    <h2>What this document is</h2>
+    <p>This is personal research into using Axon Framework as the basis for an event-sourced write model in a Spring Boot application backed by PostgreSQL. The starting point is an existing application with a JPA entity model and an event history table that records API requests as an audit log — events as a side effect of writes rather than as the source of truth.</p>
+    <p>The discussion explored whether Axon can replace that pattern with a structured event store, provide built-in projection and replay mechanisms, and connect to AWS Kinesis for downstream fan-out to independent read consumers.</p>
+    <div class="footer-note"><strong>This is not a team decision, ADR, or formal recommendation.</strong> It covers one explored path among several and would require validation with stakeholders before any commitment.</div>
+  </section>
+
+  <!-- WHAT AXON PROVIDES -->
+  <section class="section card featured" id="what-axon-provides">
+    <div class="kicker">Overview</div>
+    <h2>What Axon Framework provides</h2>
+    <p>Axon is a Java framework for CQRS and event sourcing. It provides the command handling, event storing, read-side projection building, and process coordination that would otherwise require custom infrastructure. The core model is annotation-driven and integrates with Spring Boot via auto-configuration.</p>
+    <div class="grid three">
+      <div class="sub-card">
+        <h3>Write side</h3>
+        <ul>
+          <li><code>@Aggregate</code> — domain object that enforces business rules</li>
+          <li><code>@CommandHandler</code> — handles incoming commands and applies events</li>
+          <li><code>@EventSourcingHandler</code> — rebuilds aggregate state by replaying events</li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Read side</h3>
+        <ul>
+          <li><code>@EventHandler</code> — builds and updates read model projections</li>
+          <li><code>@QueryHandler</code> — serves read queries from projections</li>
+          <li>Tracking processors with persistent position tokens in <code>token_entry</code></li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Process coordination</h3>
+        <ul>
+          <li><code>@Saga</code> — long-running processes that react to events and dispatch commands</li>
+          <li>Snapshot support for aggregates with long event histories</li>
+          <li>Built-in replay via token reset; no custom infrastructure required</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:18px">The key conceptual shift from a JPA entity model: events become the source of truth. Current entity state is a derived projection, rebuilt from events on load. The audit table stops being a side effect and becomes the write model itself.</p>
+  </section>
+
+  <!-- SETUP -->
+  <section class="section card" id="setup">
+    <div class="kicker">Configuration</div>
+    <h2>Setup without Axon Server</h2>
+    <p><code>axon-spring-boot-starter</code> connects to Axon Server by default. Excluding the <code>axon-server-connector</code> module switches to a JPA-backed event store and in-process command and query buses. No additional infrastructure is required beyond a PostgreSQL database.</p>
+
+    <h3 style="margin-top:20px">build.gradle</h3>
+<pre><code>plugins {
+    id 'org.springframework.boot' version '3.3.0'
+    id 'io.spring.dependency-management' version '1.1.4'
+    id 'java'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '25'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation('org.axonframework:axon-spring-boot-starter:4.10.3') {
+        exclude group: 'org.axonframework', module: 'axon-server-connector'
+    }
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.axonframework:axon-test:4.10.3'
+}</code></pre>
+
+    <h3 style="margin-top:22px">application.properties</h3>
+<pre><code># Disable Axon Server connection (belt-and-braces alongside the dependency exclusion)
+axon.axonserver.enabled=false
+
+# PostgreSQL datasource
+spring.datasource.url=jdbc:postgresql://localhost:5432/mydb
+spring.datasource.username=myuser
+spring.datasource.password=mypassword
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# Schema managed by Flyway migrations, not Hibernate
+spring.jpa.hibernate.ddl-auto=validate
+spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect</code></pre>
+
+    <div class="footer-note">
+      Flyway migrations create and evolve the <code>domain_event_entry</code>, <code>snapshot_event_entry</code>, <code>token_entry</code>, <code>saga_entry</code>, and <code>association_value_entry</code> tables. Set <code>ddl-auto=validate</code> to verify schema correctness at startup without allowing automatic modifications. No Axon Server, no message broker, no additional services needed.
+    </div>
+
+    <h3 style="margin-top:22px">axon-test for unit testing aggregates</h3>
+    <p style="margin-top:8px">The <code>axon-test</code> module provides a fixture for testing aggregates in isolation — given commands, expect events — without a running Spring context or database.</p>
+<pre><code>class ApplicationAggregateTest {
+
+    private FixtureConfiguration&lt;ApplicationAggregate&gt; fixture;
+
+    @BeforeEach
+    void setUp() {
+        fixture = AggregateTestFixture.newGivenWhenThenFixture(
+            ApplicationAggregate.class
+        );
+    }
+
+    @Test
+    void submitCreatesApplicationSubmittedEvent() {
+        fixture.givenNoPriorActivity()
+               .when(new SubmitApplicationCommand("app-1", "applicant-42"))
+               .expectSuccessfulHandlerExecution()
+               .expectEvents(new ApplicationSubmittedEvent("app-1", "applicant-42"));
+    }
+
+    @Test
+    void approvingNonSubmittedApplicationThrows() {
+        fixture.givenNoPriorActivity()
+               .when(new ApproveApplicationCommand("app-1", "caseworker-7"))
+               .expectException(IllegalStateException.class);
+    }
+}</code></pre>
+  </section>
+
+  <!-- THE AGGREGATE -->
+  <section class="section card featured" id="aggregate">
+    <div class="kicker">Write Side</div>
+    <h2>The Aggregate</h2>
+    <p>The aggregate is the consistency boundary on the write side. It holds business rules and emits events. It does not call any repository or external service. Loading an aggregate means replaying every stored event for that aggregate ID in sequence from <code>domain_event_entry</code>.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 900 150" role="img" aria-label="Core write-side flow: API to event store">
+        <defs>
+          <marker id="a1" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#1d4ed8"/>
+          </marker>
+        </defs>
+        <rect x="20"  y="45" width="150" height="60" rx="12" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="220" y="45" width="180" height="60" rx="12" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="450" y="45" width="180" height="60" rx="12" fill="#dbeafe" stroke="#1d4ed8"/>
+        <rect x="680" y="45" width="200" height="60" rx="12" fill="#fff" stroke="#c5d5e8"/>
+        <text x="95"  y="72" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#0f1f33">API Request</text>
+        <text x="95"  y="90" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">CommandGateway</text>
+        <text x="310" y="72" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#0f1f33">Aggregate</text>
+        <text x="310" y="90" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">validates + apply()</text>
+        <text x="540" y="72" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#1d4ed8" font-weight="600">Event Store</text>
+        <text x="540" y="90" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">domain_event_entry</text>
+        <text x="780" y="72" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#0f1f33">Tracking Processors</text>
+        <text x="780" y="90" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">projections + publishers</text>
+        <line x1="170" y1="75" x2="220" y2="75" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#a1)"/>
+        <line x1="400" y1="75" x2="450" y2="75" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#a1)"/>
+        <line x1="630" y1="75" x2="680" y2="75" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#a1)"/>
+      </svg>
+    </div>
+
+<pre><code>@Aggregate
+public class ApplicationAggregate {
+
+    @AggregateIdentifier
+    private String applicationId;
+    private ApplicationStatus status;
+    private boolean caseworkerApproved;
+
+    // Constructor-level @CommandHandler handles creation commands
+    @CommandHandler
+    public ApplicationAggregate(SubmitApplicationCommand cmd) {
+        if (cmd.getApplicationId() == null || cmd.getApplicantId() == null) {
+            throw new IllegalArgumentException("applicationId and applicantId are required");
+        }
+        AggregateLifecycle.apply(
+            new ApplicationSubmittedEvent(cmd.getApplicationId(), cmd.getApplicantId())
+        );
+    }
+
+    // @EventSourcingHandler rebuilds in-memory state — called on every load
+    @EventSourcingHandler
+    public void on(ApplicationSubmittedEvent event) {
+        this.applicationId = event.getApplicationId();
+        this.status = ApplicationStatus.SUBMITTED;
+        this.caseworkerApproved = false;
+    }
+
+    @CommandHandler
+    public void handle(ApproveApplicationCommand cmd) {
+        if (status != ApplicationStatus.SUBMITTED) {
+            throw new IllegalStateException(
+                "Cannot approve: application is in state " + status
+            );
+        }
+        AggregateLifecycle.apply(
+            new ApplicationApprovedEvent(applicationId, cmd.getApproverId())
+        );
+    }
+
+    @EventSourcingHandler
+    public void on(ApplicationApprovedEvent event) {
+        this.status = ApplicationStatus.APPROVED;
+        this.caseworkerApproved = true;
+    }
+
+    @CommandHandler
+    public void handle(WithdrawApplicationCommand cmd) {
+        if (status == ApplicationStatus.WITHDRAWN || status == ApplicationStatus.COMPLETE) {
+            throw new IllegalStateException(
+                "Cannot withdraw: application is in state " + status
+            );
+        }
+        AggregateLifecycle.apply(
+            new ApplicationWithdrawnEvent(applicationId, cmd.getReason())
+        );
+    }
+
+    @EventSourcingHandler
+    public void on(ApplicationWithdrawnEvent event) {
+        this.status = ApplicationStatus.WITHDRAWN;
+    }
+}</code></pre>
+
+    <div class="footer-note">
+      The aggregate has no <code>@Autowired</code> dependencies. It holds only the state needed to enforce business rules — not state for display or querying. <code>AggregateLifecycle.apply()</code> both stores the event and immediately calls the corresponding <code>@EventSourcingHandler</code> to update in-memory state.
+    </div>
+  </section>
+
+  <!-- EVENT STORE SCHEMA -->
+  <section class="section card" id="event-store">
+    <div class="kicker">Infrastructure</div>
+    <h2>Event store schema</h2>
+    <p>Axon creates these tables automatically on startup via JPA. They are the backbone of both write-side consistency and read-side replay.</p>
+
+    <table>
+      <thead><tr><th>Table</th><th>Purpose</th><th>Key columns</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>domain_event_entry</code></td>
+          <td>All events for all aggregates. The primary source of truth.</td>
+          <td><code>global_index</code>, <code>aggregate_identifier</code>, <code>sequence_number</code>, <code>type</code>, <code>payload_type</code>, <code>payload</code> (JSON), <code>event_identifier</code>, <code>time_stamp</code>, <code>meta_data</code></td>
+        </tr>
+        <tr>
+          <td><code>snapshot_event_entry</code></td>
+          <td>Aggregate snapshots, written periodically to avoid replaying long event streams on every load.</td>
+          <td><code>aggregate_identifier</code>, <code>sequence_number</code>, <code>type</code>, <code>payload</code></td>
+        </tr>
+        <tr>
+          <td><code>token_entry</code></td>
+          <td>Tracking processor positions. One row per processor per segment. Equivalent to a Kinesis sequence number checkpoint.</td>
+          <td><code>processor_name</code>, <code>segment</code>, <code>token</code> (serialized position), <code>owner</code></td>
+        </tr>
+        <tr>
+          <td><code>saga_entry</code></td>
+          <td>Serialized state for in-flight Sagas. Persists across service restarts.</td>
+          <td><code>saga_id</code>, <code>saga_type</code>, <code>serialized_saga</code>, <code>revision</code></td>
+        </tr>
+        <tr>
+          <td><code>association_value_entry</code></td>
+          <td>Saga association properties, used to route events to the correct Saga instance by a property such as <code>applicationId</code>.</td>
+          <td><code>saga_id</code>, <code>association_key</code>, <code>association_value</code></td>
+        </tr>
+        <tr>
+          <td><code>dead_letter_entry</code></td>
+          <td>Events that failed processing and were quarantined. Created if a dead letter queue is configured.</td>
+          <td><code>processing_group</code>, <code>sequence_identifier</code>, <code>message_identifier</code>, <code>cause_type</code>, <code>cause_message</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="warn-note">
+      <strong>Optimistic concurrency:</strong> the pair <code>(aggregate_identifier, sequence_number)</code> has a unique constraint in <code>domain_event_entry</code>. Two concurrent commands on the same aggregate will produce a constraint violation on the losing write. Axon surfaces this as a <code>ConcurrencyException</code> and can be configured to retry.
+    </div>
+
+    <h3 style="margin-top: 20px;">Schema Migration (Flyway SQL)</h3>
+    <p>Using <code>spring.jpa.hibernate.ddl-auto=validate</code> requires providing the schema via Flyway. The core Axon tables for a JPA event store are <code>domain_event_entry</code> and <code>snapshot_event_entry</code>.</p>
+<pre><code>-- V1__axon_initial_schema.sql
+CREATE TABLE domain_event_entry (
+    global_index      BIGSERIAL PRIMARY KEY,
+    event_identifier  VARCHAR(255) NOT NULL UNIQUE,
+    meta_data         BYTEA,
+    payload           BYTEA NOT NULL,
+    payload_revision  VARCHAR(255),
+    payload_type      VARCHAR(255) NOT NULL,
+    time_stamp        VARCHAR(255) NOT NULL,
+    aggregate_identifier VARCHAR(255) NOT NULL,
+    sequence_number   BIGINT NOT NULL,
+    type              VARCHAR(255),
+    UNIQUE (aggregate_identifier, sequence_number)
+);
+
+CREATE TABLE snapshot_event_entry (
+    aggregate_identifier VARCHAR(255) NOT NULL,
+    sequence_number      BIGINT NOT NULL,
+    type                 VARCHAR(255) NOT NULL,
+    event_identifier     VARCHAR(255) NOT NULL UNIQUE,
+    meta_data            BYTEA,
+    payload              BYTEA NOT NULL,
+    payload_revision     VARCHAR(255),
+    payload_type         VARCHAR(255) NOT NULL,
+    time_stamp           VARCHAR(255) NOT NULL,
+    PRIMARY KEY (aggregate_identifier, sequence_number, type)
+);
+
+CREATE TABLE token_entry (
+    processor_name VARCHAR(255) NOT NULL,
+    segment        INTEGER NOT NULL,
+    owner          VARCHAR(255),
+    timestamp      VARCHAR(255) NOT NULL,
+    token          BYTEA,
+    token_type     VARCHAR(255),
+    PRIMARY KEY (processor_name, segment)
+);</code></pre>
+  </section>
+
+  <!-- COMMANDS FROM API -->
+  <section class="section card" id="commands-api">
+    <div class="kicker">API Layer</div>
+    <h2>Dispatching commands from the API</h2>
+    <p>Spring MVC controllers dispatch commands through <code>CommandGateway</code> rather than calling a service method. The controller's responsibility is to translate the HTTP request into a command object and return an appropriate response. Routing to the correct aggregate instance is handled by the framework.</p>
+
+<pre><code>@RestController
+@RequestMapping("/applications")
+public class ApplicationController {
+
+    private final CommandGateway commandGateway;
+
+    public ApplicationController(CommandGateway commandGateway) {
+        this.commandGateway = commandGateway;
+    }
+
+    @PostMapping
+    public ResponseEntity&lt;String&gt; submit(@RequestBody SubmitApplicationRequest request) {
+        String applicationId = UUID.randomUUID().toString();
+        commandGateway.sendAndWait(
+            new SubmitApplicationCommand(applicationId, request.getApplicantId())
+        );
+        return ResponseEntity.status(201).body(applicationId);
+    }
+
+    @PostMapping("/{id}/approve")
+    public ResponseEntity&lt;Void&gt; approve(
+            @PathVariable String id,
+            @RequestBody ApproveRequest request) {
+        commandGateway.sendAndWait(
+            new ApproveApplicationCommand(id, request.getApproverId())
+        );
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/withdraw")
+    public ResponseEntity&lt;Void&gt; withdraw(
+            @PathVariable String id,
+            @RequestBody WithdrawRequest request) {
+        commandGateway.sendAndWait(
+            new WithdrawApplicationCommand(id, request.getReason())
+        );
+        return ResponseEntity.noContent().build();
+    }
+}</code></pre>
+
+    <p style="margin-top:14px"><code>sendAndWait</code> blocks until the command handler completes and the event is committed to the event store. <code>send</code> returns a <code>CompletableFuture</code>. <code>sendAndWait</code> is appropriate for request-response APIs where the caller needs confirmation before returning. Business rule violations thrown by the aggregate propagate back as exceptions through <code>CommandGateway</code>.</p>
+  </section>
+
+  <!-- READ SIDE -->
+  <section class="section card featured" id="read-side">
+    <div class="kicker">Read Side</div>
+    <h2>Projections with tracking processors</h2>
+    <p>Tracking processors poll <code>domain_event_entry</code> using a position stored in <code>token_entry</code>. On restart they resume from the last committed position. Resetting the token triggers a replay from that point. Each <code>@ProcessingGroup</code> has its own independent token.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 880 175" role="img" aria-label="Tracking processor flow from event store to read model">
+        <defs>
+          <marker id="a2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#1d4ed8"/>
+          </marker>
+          <marker id="a2g" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#94a3b8"/>
+          </marker>
+        </defs>
+        <rect x="20"  y="50" width="190" height="60" rx="12" fill="#dbeafe" stroke="#1d4ed8"/>
+        <rect x="270" y="50" width="200" height="60" rx="12" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="270" y="130" width="200" height="32" rx="10" fill="#f0f5ff" stroke="#c5d5e8"/>
+        <rect x="530" y="50" width="190" height="60" rx="12" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="780" y="50" width="90"  height="60" rx="12" fill="#f0fdf4" stroke="#166534"/>
+
+        <text x="115" y="77"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#1d4ed8" font-weight="600">domain_event_entry</text>
+        <text x="115" y="96"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">PostgreSQL</text>
+        <text x="370" y="77"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#0f1f33">Tracking Processor</text>
+        <text x="370" y="96"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">polls events in order</text>
+        <text x="370" y="152" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">token_entry (position)</text>
+        <text x="625" y="77"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#0f1f33">@EventHandler</text>
+        <text x="625" y="96"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">updates projection table</text>
+        <text x="825" y="77"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#166534">Read</text>
+        <text x="825" y="96"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#166534">Model</text>
+
+        <line x1="210" y1="80" x2="270" y2="80" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#a2)"/>
+        <line x1="470" y1="80" x2="530" y2="80" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#a2)"/>
+        <line x1="720" y1="80" x2="780" y2="80" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#a2)"/>
+        <line x1="370" y1="130" x2="370" y2="112" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#a2g)"/>
+      </svg>
+    </div>
+
+    <p style="margin-top:16px">Two modes exist for event processors. Tracking processors (recommended) poll the event store at their own pace, maintain a durable position token, and can replay from any point. Subscribing processors receive events synchronously in the same thread as the command handler — simpler, but not replayable and tightly coupled to the write path.</p>
+
+<pre><code>@Component
+@ProcessingGroup("application-status")
+public class ApplicationStatusProjection {
+
+    private final ApplicationStatusRepository repo;
+
+    public ApplicationStatusProjection(ApplicationStatusRepository repo) {
+        this.repo = repo;
+    }
+
+    @EventHandler
+    public void on(ApplicationSubmittedEvent event) {
+        repo.save(new ApplicationStatusView(
+            event.getApplicationId(),
+            "SUBMITTED",
+            event.getApplicantId(),
+            Instant.now()
+        ));
+    }
+
+    @EventHandler
+    public void on(ApplicationApprovedEvent event) {
+        repo.findById(event.getApplicationId()).ifPresent(view -> {
+            view.setStatus("APPROVED");
+            view.setLastUpdated(Instant.now());
+            repo.save(view);
+        });
+    }
+
+    @EventHandler
+    public void on(ApplicationWithdrawnEvent event) {
+        repo.findById(event.getApplicationId()).ifPresent(view -> {
+            view.setStatus("WITHDRAWN");
+            view.setWithdrawalReason(event.getReason());
+            view.setLastUpdated(Instant.now());
+            repo.save(view);
+        });
+    }
+}</code></pre>
+
+    <div class="warn-note">
+      <strong>Idempotency is required.</strong> Tracking processors provide at-least-once delivery. If a handler succeeds but the service crashes before the token commits, the event is redelivered on restart. Every <code>@EventHandler</code> method must produce the same result when called twice with the same event — a safe pattern is to use upsert operations (save-or-update) rather than unconditional inserts.
+    </div>
+
+    <h3 id="query-handling" style="margin-top:26px">Query handling</h3>
+    <p style="margin-top:8px">Axon provides a <code>QueryGateway</code> and <code>@QueryHandler</code> to serve reads through the same framework pattern as commands. This is optional — controllers can call the read model repository directly to start with, and the query bus can be introduced later when it adds value (for example, when multiple services need to query the same model).</p>
+
+<pre><code>// Declare a query object
+public record GetApplicationStatusQuery(String applicationId) {}
+
+// Add a @QueryHandler to the projection class
+@QueryHandler
+public ApplicationStatusView handle(GetApplicationStatusQuery query) {
+    return repo.findById(query.getApplicationId())
+        .orElseThrow(() -> new ApplicationNotFoundException(query.getApplicationId()));
+}
+
+// Dispatch from the controller
+@GetMapping("/{id}/status")
+public ApplicationStatusView getStatus(@PathVariable String id) {
+    return queryGateway.query(
+        new GetApplicationStatusQuery(id),
+        ResponseTypes.instanceOf(ApplicationStatusView.class)
+    ).join();
+}</code></pre>
+  </section>
+
+  <!-- REPLAY -->
+  <section class="section card" id="replay">
+    <div class="kicker">Event Replay</div>
+    <h2>Replay options</h2>
+    <p>Axon's replay mechanism works by resetting the tracking token for a processor. The processor re-reads events from the event store from that position. This is the mechanism for rebuilding a corrupted read model, migrating to a new projection schema, or debugging what happened at a point in time.</p>
+
+    <table>
+      <thead><tr><th>Use case</th><th>Mechanism</th><th>Scope</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Rebuild entire read model from scratch</td>
+          <td>Reset processor token to tail (beginning of event store)</td>
+          <td>All events, all aggregates</td>
+        </tr>
+        <tr>
+          <td>Rebuild read model from a specific date</td>
+          <td>Reset token to a <code>TrackingToken</code> at a given <code>Instant</code></td>
+          <td>All events from that timestamp forward</td>
+        </tr>
+        <tr>
+          <td>Process only future events (skip history)</td>
+          <td>Reset token to head (current end of event store)</td>
+          <td>Events written after the reset only</td>
+        </tr>
+        <tr>
+          <td>Read all events for one aggregate</td>
+          <td><code>eventStore.readEvents(aggregateId)</code></td>
+          <td>All events for a single aggregate ID, in sequence</td>
+        </tr>
+        <tr>
+          <td>Reconstruct state of one aggregate at date X</td>
+          <td>Read events by ID, filter by timestamp, apply manually</td>
+          <td>Single aggregate up to target point in time</td>
+        </tr>
+      </tbody>
+    </table>
+
+<pre><code>// Obtain a reference to the tracking processor by its processing group name
+TrackingEventProcessor processor = eventProcessingConfiguration
+    .eventProcessorByProcessingGroup("application-status", TrackingEventProcessor.class)
+    .orElseThrow(() -> new IllegalStateException("Processor not found"));
+
+processor.shutDown();
+
+// Option 1: full replay from the beginning of the event store
+processor.resetTokens();
+
+// Option 2: replay from a specific point in time (all aggregates from that date forward)
+TrackingToken tokenAt = eventStore.createTokenAt(
+    Instant.parse("2026-01-01T00:00:00Z")
+);
+processor.resetTokens(tokenAt);
+
+// Option 3: skip all history, process only future events
+processor.resetTokens(eventStore.createHeadToken());
+
+processor.start();</code></pre>
+
+    <h3 style="margin-top:22px">Point-in-time state for a single aggregate</h3>
+    <p style="margin-top:8px">Tracking processor replay is always global — it processes all events across all aggregates in order. There is no built-in mechanism to replay only the events for one aggregate ID. For reconstructing the state of a specific application at a given date, use the event store API directly.</p>
+
+<pre><code>// Reconstruct the state of one application as it existed on a given date
+Instant targetDate = Instant.parse("2026-03-15T12:00:00Z");
+
+DomainEventStream events = eventStore.readEvents(applicationId);
+List&lt;DomainEventMessage&lt;?&gt;&gt; relevantEvents = events.asStream()
+    .filter(event -> !event.getTimestamp().isAfter(targetDate))
+    .collect(Collectors.toList());
+
+// Apply each event to a blank aggregate instance to reconstruct state
+// (requires a manual handler or reflection — Axon does not provide a built-in API for this)</code></pre>
+
+    <section id="snapshotting" style="margin-top:26px">
+      <h3>Snapshotting</h3>
+      <p style="margin-top:8px">Loading an aggregate with hundreds of events requires replaying all of them. Snapshotting writes the current aggregate state into <code>snapshot_event_entry</code> after a threshold number of events. Subsequent loads start from the snapshot and replay only the events that followed it.</p>
+<pre><code>// build.gradle — no additional dependency needed, snapshotter is included
+
+// Java configuration
+@Bean
+public SnapshottingConfiguration snapshottingConfiguration(
+        SnapshottingConfigurer configurer,
+        Snapshotter snapshotter) {
+    return configurer
+        .forType(ApplicationAggregate.class)
+        .snapshotTriggerDefinition(
+            new EventCountSnapshotTriggerDefinition(snapshotter, 50)
+        )
+        .andConfigure();
+}</code></pre>
+      <div class="warn-note">
+        If snapshotting is active and you need to reconstruct state at a point in time before the latest snapshot, you must bypass the snapshot and read raw events from <code>domain_event_entry</code> directly. The snapshot represents a point after which earlier event history is no longer traversed on normal load.
+      </div>
+    </section>
+  </section>
+
+  <!-- OUTBOX -->
+  <section class="section card featured" id="outbox">
+    <div class="kicker">Reliability</div>
+    <h2>Built-in outbox behaviour</h2>
+    <p>Axon does not call it an outbox, but the event store combined with tracking processors provides the same guarantees without any additional infrastructure. The event is written to PostgreSQL within the aggregate's local transaction. The downstream action — updating a read model, publishing to Kinesis — happens separately via a tracking processor that only advances its token after the action succeeds.</p>
+
+    <div class="flow">
+      <div class="step">
+        <strong>1. Command handled</strong>
+        Aggregate applies event. Axon writes it to <code>domain_event_entry</code> atomically within the transaction.
+      </div>
+      <div class="step">
+        <strong>2. Processor reads event</strong>
+        Tracking processor polls <code>domain_event_entry</code> and reads the committed event.
+      </div>
+      <div class="step">
+        <strong>3. Handler executes</strong>
+        <code>@EventHandler</code> runs — updates the read model, publishes to Kinesis, or any other action.
+      </div>
+      <div class="step">
+        <strong>4. Token advances</strong>
+        Only on successful handler execution does Axon commit the updated token to <code>token_entry</code>.
+      </div>
+    </div>
+
+    <p style="margin-top:18px">If the downstream system is unavailable, the token does not advance. The processor stalls or retries. When the downstream system recovers, the processor resumes from the last committed token position. No events are lost — they are durable in PostgreSQL before the processor ever runs.</p>
+
+    <p style="margin-top:10px">A traditional outbox pattern requires building an outbox table, a relay process, and failure handling explicitly. Axon's design makes this structural. The event store is the outbox; the tracking processor is the relay.</p>
+
+    <div class="warn-note">
+      <strong>At-least-once delivery:</strong> if the handler succeeds but the service restarts before the token commits, the event is redelivered. Handlers must be idempotent. Axon generates a unique <code>event_identifier</code> (UUID) for every event — use this as the idempotency key in downstream systems.
+    </div>
+
+    <h3 style="margin-top:22px">Dead letter queue for poison events</h3>
+    <p style="margin-top:8px">By default, a consistently failing event blocks all subsequent events for that processor. Configuring a dead letter queue quarantines failing events and allows the processor to continue with the rest of the stream.</p>
+<pre><code>// build.gradle — no additional dependency needed
+
+// Java configuration
+@Autowired
+public void configure(EventProcessingConfigurer configurer) {
+    configurer.registerDeadLetterQueue(
+        "application-status",    // processing group name
+        config -> JpaSequencedDeadLetterQueue.builder()
+            .processingGroup("application-status")
+            .maxSequences(256)
+            .maxSequenceSize(256)
+            .transactionManager(config.getComponent(TransactionManager.class))
+            .entityManagerProvider(config.getComponent(EntityManagerProvider.class))
+            .serializer(config.serializer())
+            .build()
+    );
+}</code></pre>
+  </section>
+
+  <!-- AUDIT TRAIL -->
+  <section class="section card" id="audit-trail">
+    <div class="kicker">Audit</div>
+    <h2>Full payload audit trail</h2>
+    <p>Axon events should carry only the data needed to reconstruct aggregate state and update projections. Embedding full API request payloads in events makes them expensive to replay and difficult to evolve. The full request payload is a compliance concern, not an event sourcing concern. The two should be handled independently and linked by reference.</p>
+
+    <div class="grid two">
+      <div class="sub-card">
+        <h3>Option 1 — Command interceptor + S3</h3>
+        <p>A <code>MessageDispatchInterceptor</code> writes the full request payload to S3 before the command is dispatched. It attaches the resulting S3 key to the command's metadata. That key propagates into the resulting event's metadata automatically, linking every domain event back to its raw request.</p>
+<pre><code>@Bean
+public MessageDispatchInterceptor&lt;CommandMessage&lt;?&gt;&gt;
+        auditInterceptor(AuditStore auditStore) {
+    return messages -> (index, msg) -> {
+        String s3Key = auditStore.store(
+            msg.getPayloadType().getSimpleName(),
+            msg.getPayload()
+        );
+        return msg.andMetaData(
+            Map.of("auditKey", s3Key,
+                   "auditTimestamp", Instant.now().toString())
+        );
+    };
+}
+
+// Register the interceptor with the command bus
+@Autowired
+public void registerInterceptor(
+        CommandBus commandBus,
+        MessageDispatchInterceptor&lt;CommandMessage&lt;?&gt;&gt; auditInterceptor) {
+    commandBus.registerDispatchInterceptor(auditInterceptor);
+}</code></pre>
+      </div>
+      <div class="sub-card">
+        <h3>Option 2 — Separate audit log</h3>
+        <p>A servlet filter writes the full request to an append-only audit table or S3 before the command is dispatched. Axon has no knowledge of it. The two stores are linked only by a correlation ID passed as an HTTP header on every request.</p>
+        <ul>
+          <li>Simpler — no Axon-specific code required</li>
+          <li>Covers read requests as well as writes</li>
+          <li>Correlation ID links audit record to domain event via metadata</li>
+          <li>Audit log can be written to S3 directly from the filter using AWS SDK v2</li>
+        </ul>
+        <div class="footer-note" style="margin-top:14px">
+          This option keeps the two concerns completely independent. The audit log and the event store are separate systems. Either can evolve without affecting the other.
+        </div>
+      </div>
+    </div>
+
+    <p style="margin-top:18px">In both options, Axon events remain small and domain-focused. The S3 audit log holds the raw compliance record. They are linked by a key or correlation ID, not by embedding payloads in events.</p>
+  </section>
+
+  <!-- BUSINESS RULES -->
+  <section class="section card" id="business-rules">
+    <div class="kicker">Consistency</div>
+    <h2>Business rules and state guards</h2>
+    <p>All rules governing whether a command is valid sit inside the aggregate's <code>@CommandHandler</code> methods. The aggregate holds whatever state is needed to enforce those rules. That state is not available for external querying — it exists solely so the aggregate can accept or reject commands.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 840 140" role="img" aria-label="Command validation flow: valid vs invalid paths">
+        <defs>
+          <marker id="a3b" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#1d4ed8"/>
+          </marker>
+          <marker id="a3g" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#166534"/>
+          </marker>
+          <marker id="a3r" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#b45309"/>
+          </marker>
+        </defs>
+        <rect x="20"  y="45" width="130" height="50" rx="10" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="210" y="45" width="200" height="50" rx="10" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="490" y="10" width="190" height="50" rx="10" fill="#f0fdf4" stroke="#166534"/>
+        <rect x="490" y="80" width="190" height="50" rx="10" fill="#fff7ed" stroke="#b45309"/>
+        <rect x="740" y="10" width="90"  height="50" rx="10" fill="#dbeafe" stroke="#1d4ed8"/>
+        <text x="85"  y="68" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0f1f33">Command</text>
+        <text x="310" y="65" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0f1f33">Aggregate validates</text>
+        <text x="585" y="32" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#166534">apply(event)</text>
+        <text x="585" y="49" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#166534">→ event stored</text>
+        <text x="585" y="100" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#b45309">throw exception</text>
+        <text x="585" y="118" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#b45309">→ nothing stored</text>
+        <text x="785" y="32" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#1d4ed8">Event Store</text>
+        <text x="785" y="48" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#1d4ed8">updated</text>
+        <line x1="150" y1="70" x2="210" y2="70" stroke="#1d4ed8" stroke-width="2" marker-end="url(#a3b)"/>
+        <line x1="410" y1="62" x2="490" y2="35" stroke="#166534" stroke-width="2" marker-end="url(#a3g)"/>
+        <line x1="410" y1="78" x2="490" y2="105" stroke="#b45309" stroke-width="2" marker-end="url(#a3r)"/>
+        <line x1="680" y1="35" x2="740" y2="35" stroke="#1d4ed8" stroke-width="2" marker-end="url(#a3b)"/>
+        <text x="440" y="58" font-family="Avenir Next,sans-serif" font-size="11" fill="#166534">valid</text>
+        <text x="440" y="90" font-family="Avenir Next,sans-serif" font-size="11" fill="#b45309">invalid</text>
+      </svg>
+    </div>
+
+<pre><code>@CommandHandler
+public void handle(CompleteApplicationCommand cmd) {
+    // State guard: caseworker must have approved before an application can complete
+    if (!caseworkerApproved) {
+        throw new CaseworkerApprovalRequiredException(applicationId);
+    }
+    if (status == ApplicationStatus.COMPLETE) {
+        throw new IllegalStateException("Application is already complete");
+    }
+    AggregateLifecycle.apply(
+        new ApplicationCompletedEvent(applicationId, cmd.getCompletedAt())
+    );
+}
+
+@EventSourcingHandler
+public void on(ApplicationCompletedEvent event) {
+    this.status = ApplicationStatus.COMPLETE;
+}</code></pre>
+
+    <div class="footer-note">
+      Commands that violate business rules throw before <code>apply()</code> is called. No event is written. The aggregate state does not change. The caller receives the exception through <code>CommandGateway</code>. The aggregate's internal state fields (<code>caseworkerApproved</code>, <code>status</code>) are not queryable from outside — the read model is the source of truth for reads.
+    </div>
+  </section>
+
+  <!-- SAGAS -->
+  <section class="section card featured" id="sagas">
+    <div class="kicker">Long-running Processes</div>
+    <h2>Sagas</h2>
+    <p>A Saga coordinates a multi-step business process that spans multiple events and commands over time. It reacts to events, maintains its own state, and dispatches commands when conditions are met. Saga state is serialized into <code>saga_entry</code> after each event, so it survives service restarts.</p>
+    <p>A representative use case: completing an application requires caseworker approval and document verification. These may occur in any order and at different times. The Saga listens for both events and dispatches <code>CompleteApplicationCommand</code> only when both have been received.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 860 170" role="img" aria-label="Saga coordination: two events trigger one command">
+        <defs>
+          <marker id="a4" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#1d4ed8"/>
+          </marker>
+        </defs>
+        <rect x="20"  y="20"  width="190" height="50" rx="12" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="20"  y="100" width="190" height="50" rx="12" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="310" y="55"  width="230" height="60" rx="12" fill="#dbeafe" stroke="#1d4ed8"/>
+        <rect x="640" y="20"  width="200" height="50" rx="12" fill="#fff" stroke="#c5d5e8"/>
+        <rect x="640" y="100" width="200" height="50" rx="12" fill="#f0fdf4" stroke="#166534"/>
+
+        <text x="115" y="42"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0f1f33">CaseworkerApprovedEvent</text>
+        <text x="115" y="130" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0f1f33">DocumentsVerifiedEvent</text>
+        <text x="425" y="80"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#1d4ed8" font-weight="600">Saga</text>
+        <text x="425" y="98"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">waits for both conditions</text>
+        <text x="740" y="42"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0f1f33">CompleteApplicationCommand</text>
+        <text x="740" y="120" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#166534">Aggregate completes</text>
+        <text x="740" y="138" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#166534">ApplicationCompletedEvent</text>
+
+        <line x1="210" y1="45"  x2="310" y2="75"  stroke="#1d4ed8" stroke-width="2" marker-end="url(#a4)"/>
+        <line x1="210" y1="125" x2="310" y2="95"  stroke="#1d4ed8" stroke-width="2" marker-end="url(#a4)"/>
+        <line x1="540" y1="75"  x2="640" y2="45"  stroke="#1d4ed8" stroke-width="2" marker-end="url(#a4)"/>
+        <line x1="640" y1="45"  x2="640" y2="100" stroke="#166534" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#a4)"/>
+        <text x="575" y="60" font-family="Avenir Next,sans-serif" font-size="11" fill="#4a6080">dispatches</text>
+      </svg>
+    </div>
+
+<pre><code>@Saga
+public class ApplicationCompletionSaga {
+
+    @Inject
+    private transient CommandGateway commandGateway;
+
+    private boolean caseworkerApproved = false;
+    private boolean documentsVerified  = false;
+
+    // Saga is created when an application is submitted
+    @StartSaga
+    @SagaEventHandler(associationProperty = "applicationId")
+    public void on(ApplicationSubmittedEvent event) {
+        // Saga initialised — awaiting conditions
+    }
+
+    @SagaEventHandler(associationProperty = "applicationId")
+    public void on(CaseworkerApprovedEvent event) {
+        caseworkerApproved = true;
+        completeIfReady(event.getApplicationId());
+    }
+
+    @SagaEventHandler(associationProperty = "applicationId")
+    public void on(DocumentsVerifiedEvent event) {
+        documentsVerified = true;
+        completeIfReady(event.getApplicationId());
+    }
+
+    // Saga ends when the application reaches the complete state
+    @EndSaga
+    @SagaEventHandler(associationProperty = "applicationId")
+    public void on(ApplicationCompletedEvent event) {
+        // Saga state removed from saga_entry
+    }
+
+    // Handle withdrawal — no point waiting for completion conditions
+    @EndSaga
+    @SagaEventHandler(associationProperty = "applicationId")
+    public void on(ApplicationWithdrawnEvent event) {
+        // Clean up without dispatching
+    }
+
+    private void completeIfReady(String applicationId) {
+        if (caseworkerApproved && documentsVerified) {
+            commandGateway.send(
+                new CompleteApplicationCommand(applicationId, Instant.now())
+            );
+        }
+    }
+}</code></pre>
+
+    <div class="footer-note">
+      The Saga coordinates <em>when</em> to issue <code>CompleteApplicationCommand</code>. The aggregate still enforces <em>whether</em> the command is valid — the two concerns remain separate. The Saga dispatches the command; the aggregate's <code>@CommandHandler</code> rejects it if business rules are not met.
+    </div>
+  </section>
+
+  <!-- INDEPENDENT STATUS -->
+  <section class="section card" id="independent-status">
+    <div class="kicker">Read Models</div>
+    <h2>Independent read model statuses</h2>
+    <p>Multiple tracking processors can consume the same event stream independently and maintain different status representations. Each processor has its own token in <code>token_entry</code> and runs at its own pace. A failure or replay in one does not affect the others.</p>
+    <p>A canonical status projection holds the authoritative lifecycle state enforced by the aggregate's business rules. Domain-specific projections derive their own status representations from the same events, shaped for a specific consumer's workflow.</p>
+
+    <div class="grid two">
+      <div class="sub-card">
+        <h3>Canonical status projection</h3>
+        <p>One authoritative record of the application's current lifecycle state. Derived from events produced by the aggregate, which enforces the transitions.</p>
+<pre><code>@Component
+@ProcessingGroup("canonical-status")
+public class CanonicalStatusProjection {
+
+    private final CanonicalStatusRepository repo;
+
+    @EventHandler
+    public void on(ApplicationSubmittedEvent e) {
+        repo.save(new CanonicalStatus(
+            e.getApplicationId(), "SUBMITTED"
+        ));
+    }
+
+    @EventHandler
+    public void on(ApplicationApprovedEvent e) {
+        repo.findById(e.getApplicationId())
+            .ifPresent(s -> {
+                s.setStatus("APPROVED");
+                repo.save(s);
+            });
+    }
+
+    @EventHandler
+    public void on(ApplicationCompletedEvent e) {
+        repo.findById(e.getApplicationId())
+            .ifPresent(s -> {
+                s.setStatus("COMPLETE");
+                repo.save(s);
+            });
+    }
+}</code></pre>
+      </div>
+      <div class="sub-card">
+        <h3>Caseworker dashboard projection</h3>
+        <p>A separate projection that derives its own status vocabulary from the same events — reflecting workflow steps meaningful to caseworkers that do not belong in the canonical lifecycle.</p>
+<pre><code>@Component
+@ProcessingGroup("caseworker-dashboard")
+public class CaseworkerDashboardProjection {
+
+    private final DashboardViewRepository repo;
+
+    @EventHandler
+    public void on(ApplicationSubmittedEvent e) {
+        repo.save(new DashboardView(
+            e.getApplicationId(), "AWAITING_ASSIGNMENT"
+        ));
+    }
+
+    @EventHandler
+    public void on(ApplicationAssignedEvent e) {
+        repo.findById(e.getApplicationId())
+            .ifPresent(v -> {
+                v.setStatus("IN_REVIEW");
+                v.setAssignee(e.getAssigneeId());
+                repo.save(v);
+            });
+    }
+
+    @EventHandler
+    public void on(DocumentsVerifiedEvent e) {
+        repo.findById(e.getApplicationId())
+            .ifPresent(v -> {
+                v.setStatus("READY_TO_COMPLETE");
+                repo.save(v);
+            });
+    }
+}</code></pre>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Both processors read from the same <code>domain_event_entry</code> table. Neither is aware of the other. Resetting the token for <code>caseworker-dashboard</code> triggers a replay for that projection only — the canonical status projection is unaffected.
+    </div>
+  </section>
+
+  <!-- KINESIS -->
+  <section class="section card featured" id="kinesis">
+    <div class="kicker">External Distribution</div>
+    <h2>Kinesis integration</h2>
+    <p>There is no native Axon Kinesis extension. The standard approach is a dedicated tracking processor that reads committed events from the event store and publishes them to Kinesis. Events are durably stored in PostgreSQL before the processor runs — the same structural guarantee as the outbox pattern.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 900 175" role="img" aria-label="Kinesis publisher tracking processor flow">
+        <defs>
+          <marker id="a5b" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#1d4ed8"/>
+          </marker>
+          <marker id="a5c" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#0369a1"/>
+          </marker>
+          <marker id="a5g" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+            <path d="M0,0 L10,3 L0,6 z" fill="#166534"/>
+          </marker>
+        </defs>
+        <rect x="20"  y="55" width="185" height="60" rx="12" fill="#dbeafe" stroke="#1d4ed8"/>
+        <rect x="265" y="55" width="200" height="60" rx="12" fill="#fff"    stroke="#c5d5e8"/>
+        <rect x="535" y="10" width="200" height="55" rx="12" fill="#f0f9ff" stroke="#0369a1"/>
+        <rect x="535" y="100" width="200" height="55" rx="12" fill="#f0fdf4" stroke="#166534"/>
+        <rect x="800" y="10" width="85"  height="55" rx="12" fill="#f0f9ff" stroke="#0369a1"/>
+
+        <text x="112" y="82"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#1d4ed8" font-weight="600">domain_event_entry</text>
+        <text x="112" y="100" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">PostgreSQL</text>
+        <text x="365" y="82"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#0f1f33">kinesis-publisher</text>
+        <text x="365" y="100" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">Tracking Processor</text>
+        <text x="635" y="32"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0369a1">publish to Kinesis</text>
+        <text x="635" y="48"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">on success</text>
+        <text x="635" y="122" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#166534">token advances</text>
+        <text x="635" y="140" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">committed to token_entry</text>
+        <text x="842" y="32"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0369a1">Kinesis</text>
+        <text x="842" y="48"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#0369a1">Stream</text>
+
+        <line x1="205" y1="85"  x2="265" y2="85"  stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#a5b)"/>
+        <line x1="465" y1="72"  x2="535" y2="37"  stroke="#0369a1" stroke-width="2"   marker-end="url(#a5c)"/>
+        <line x1="465" y1="98"  x2="535" y2="127" stroke="#166534" stroke-width="2"   marker-end="url(#a5g)"/>
+        <line x1="735" y1="37"  x2="800" y2="37"  stroke="#0369a1" stroke-width="2"   marker-end="url(#a5c)"/>
+        <text x="498" y="62"  font-family="Avenir Next,sans-serif" font-size="11" fill="#0369a1">if success</text>
+        <text x="498" y="108" font-family="Avenir Next,sans-serif" font-size="11" fill="#166534">after success</text>
+      </svg>
+    </div>
+
+<pre><code>// build.gradle — add AWS SDK for Kinesis
+dependencies {
+    implementation 'software.amazon.awssdk:kinesis:2.25.0'
+    // ... other dependencies
+}
+
+// Kinesis publisher tracking processor
+@Component
+@ProcessingGroup("kinesis-publisher")
+public class KinesisEventPublisher {
+
+    private final KinesisAsyncClient kinesis;
+    private final ObjectMapper objectMapper;
+    private final String streamName;
+
+    public KinesisEventPublisher(KinesisAsyncClient kinesis,
+                                  ObjectMapper objectMapper,
+                                  @Value("${kinesis.stream.name}") String streamName) {
+        this.kinesis = kinesis;
+        this.objectMapper = objectMapper;
+        this.streamName = streamName;
+    }
+
+    @EventHandler
+    public void on(ApplicationSubmittedEvent event,
+                   @MessageIdentifier String eventId) {
+        publish(eventId, event.getApplicationId(), event);
+    }
+
+    @EventHandler
+    public void on(ApplicationApprovedEvent event,
+                   @MessageIdentifier String eventId) {
+        publish(eventId, event.getApplicationId(), event);
+    }
+
+    @EventHandler
+    public void on(ApplicationCompletedEvent event,
+                   @MessageIdentifier String eventId) {
+        publish(eventId, event.getApplicationId(), event);
+    }
+
+    private void publish(String eventId, String partitionKey, Object payload) {
+        try {
+            byte[] data = objectMapper.writeValueAsBytes(Map.of(
+                "eventId", eventId,
+                "eventType", payload.getClass().getSimpleName(),
+                "payload", payload
+            ));
+            PutRecordRequest request = PutRecordRequest.builder()
+                .streamName(streamName)
+                .partitionKey(partitionKey)   // applicationId ensures ordering per application
+                .data(SdkBytes.fromByteArray(data))
+                .build();
+            kinesis.putRecord(request).join();
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Failed to serialize event " + eventId, e);
+        }
+    }
+}</code></pre>
+
+    <div class="warn-note">
+      <strong>At-least-once delivery to Kinesis.</strong> Kinesis consumers must handle duplicates using <code>event_identifier</code> as the idempotency key. Configure a dead letter queue for the <code>kinesis-publisher</code> processing group so a consistently failing event does not stall publication for all subsequent events. Partitioning by <code>applicationId</code> ensures ordering per application within a Kinesis shard.
+    </div>
+  </section>
+
+  <!-- KAFKA ALTERNATIVE -->
+  <section class="section" id="kafka-alternative">
+    <details class="research-fold">
+      <summary>
+        <span class="toggle-icon"></span>
+        <div>
+          <div class="kicker" style="margin-bottom:6px">Alternative Approach</div>
+          <h2 style="margin-bottom:8px">Kafka instead of Kinesis</h2>
+          <p class="lead" style="font-size:0.95rem">Axon has a native Kafka extension that removes the need for a custom tracking processor publisher. On EKS, Kafka can run via the Strimzi operator or Amazon MSK. Click to expand pros, cons, and deployment notes.</p>
+        </div>
+      </summary>
+      <div class="fold-body">
+        <p>The <code>axon-kafka-spring-boot-starter</code> extension bridges the Axon event store and a Kafka topic. Events committed to <code>domain_event_entry</code> are automatically forwarded to Kafka by the extension. Downstream consumers — Axon-based or otherwise — subscribe to the topic independently, with no knowledge of Axon required.</p>
+
+        <h3 style="margin-top:20px">build.gradle</h3>
+<pre><code>dependencies {
+    implementation('org.axonframework:axon-spring-boot-starter:4.10.3') {
+        exclude group: 'org.axonframework', module: 'axon-server-connector'
+    }
+    // Version must match the axon-spring-boot-starter version
+    implementation 'org.axonframework.extensions.kafka:axon-kafka-spring-boot-starter:4.0.0'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    runtimeOnly 'org.postgresql:postgresql'
+}</code></pre>
+
+        <h3 style="margin-top:20px">application.properties</h3>
+<pre><code>axon.axonserver.enabled=false
+axon.kafka.bootstrap-servers=my-kafka-cluster:9092
+axon.kafka.publisher.confirmation-mode=transactional
+axon.kafka.producer.transaction-id-prefix=axon-producer-
+axon.kafka.default-topic=application-events</code></pre>
+
+        <h3 style="margin-top:22px">Deployment on EKS</h3>
+        <p style="margin-top:8px">Two options when running on EKS with Helm:</p>
+        <div class="grid two" style="margin-top:14px">
+          <div class="sub-card">
+            <h3>Strimzi operator (self-hosted)</h3>
+            <p>Kafka runs inside the cluster as Kubernetes resources managed by the Strimzi operator. A Helm chart is available and deploys alongside other application Helm charts.</p>
+<pre style="font-size:0.8rem"><code>helm repo add strimzi https://strimzi.io/charts/
+helm install strimzi-kafka-operator \
+  strimzi/strimzi-kafka-operator \
+  --namespace kafka --create-namespace</code></pre>
+            <ul style="margin-top:10px">
+              <li>Kafka stays within the cluster — no external managed service dependency</li>
+              <li>Full control over retention, topic configuration, and upgrades</li>
+              <li>Adds operational responsibility for the broker itself</li>
+            </ul>
+          </div>
+          <div class="sub-card">
+            <h3>Amazon MSK (managed)</h3>
+            <p>AWS-managed Kafka. No broker pods in EKS. Applications running on EKS connect to MSK over the VPC using IAM authentication via IRSA.</p>
+            <ul style="margin-top:10px">
+              <li>No broker operational overhead — AWS manages availability and patching</li>
+              <li>IAM-based auth integrates naturally with EKS IRSA</li>
+              <li>More expensive than Kinesis for low-throughput workloads</li>
+              <li>Some Kafka features are restricted compared to self-hosted</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3 style="margin-top:24px">GitHub Actions — local testing with Testcontainers</h3>
+        <p style="margin-top:8px">Testcontainers provides an embedded Kafka container that runs inside GitHub Actions workflows without any external broker. This is a significant advantage over Kinesis, which requires either LocalStack or mocking for local and CI testing.</p>
+<pre><code>// build.gradle
+testImplementation 'org.testcontainers:kafka:1.19.8'
+testImplementation 'org.testcontainers:junit-jupiter:1.19.8'</code></pre>
+<pre><code>@Testcontainers
+class KafkaPublisherIntegrationTest {
+
+    @Container
+    static KafkaContainer kafka = new KafkaContainer(
+        DockerImageName.parse("confluentinc/cp-kafka:7.6.0")
+    );
+
+    @DynamicPropertySource
+    static void kafkaProperties(DynamicPropertyRegistry registry) {
+        registry.add("axon.kafka.bootstrap-servers", kafka::getBootstrapServers);
+    }
+
+    // Test that events are published to Kafka after commands are handled
+}</code></pre>
+
+        <h3 style="margin-top:24px">Pros and cons vs Kinesis</h3>
+        <div class="grid two" style="margin-top:14px">
+          <div class="sub-card">
+            <h3 style="color:var(--good)">Advantages over Kinesis</h3>
+            <ul>
+              <li>Native Axon extension — no custom tracking processor publisher to write or maintain</li>
+              <li>Configurable retention (hours to indefinite, vs Kinesis 1–365 days)</li>
+              <li>Consumer group offset reset provides native replay from any position without custom logic</li>
+              <li>Testcontainers Kafka image works in GitHub Actions without LocalStack or mocking</li>
+              <li>Richer tooling: Kafka UI, Schema Registry (Confluent or AWS Glue), kcat for inspection</li>
+              <li>Strimzi keeps everything inside EKS — no dependency on a second AWS streaming service</li>
+            </ul>
+          </div>
+          <div class="sub-card">
+            <h3 style="color:var(--warn)">Disadvantages vs Kinesis</h3>
+            <ul>
+              <li>At ~2–5 events per second peak, Kinesis is sufficient and operationally lighter than self-hosted Kafka</li>
+              <li>MSK costs more than Kinesis for this throughput level; the volume does not justify the price difference</li>
+              <li>Kinesis integrates natively with Lambda, Firehose, S3, and CloudWatch without additional connectors</li>
+              <li>The Axon Kafka extension adds its own configuration surface (producer transactions, topic naming, consumer group setup)</li>
+              <li>At-least-once delivery and idempotency requirements are identical — Kafka does not remove this concern</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="footer-note" style="margin-top:18px">
+          At ~100,000 applications per year, Kinesis is the simpler AWS-native choice. Kafka becomes more compelling if throughput grows significantly, if longer native retention without an S3 archive is needed, or if non-AWS consumers need to subscribe without going through a Kinesis-specific SDK. The native Axon Kafka extension is a meaningful advantage if the team is already running Kafka elsewhere in the platform.
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- TRADE-OFFS -->
+  <section class="section card" id="trade-offs">
+    <div class="kicker">Assessment</div>
+    <h2>Trade-offs summary</h2>
+    <p>Axon takes on infrastructure that would otherwise require custom implementation. The cost is an opinionated programming model and a meaningful learning curve. The table below maps key concerns to what each approach requires.</p>
+
+    <table>
+      <thead><tr><th>Concern</th><th>Custom implementation</th><th>With Axon</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Event storage</td>
+          <td>Custom event history table, manually designed schema</td>
+          <td>Auto-created <code>domain_event_entry</code> via JPA</td>
+        </tr>
+        <tr>
+          <td>Aggregate load from event history</td>
+          <td>Custom replay logic per aggregate</td>
+          <td>Built-in via <code>@EventSourcingHandler</code> replay</td>
+        </tr>
+        <tr>
+          <td>Optimistic concurrency control</td>
+          <td>Custom version column or JPA <code>@Version</code></td>
+          <td>Sequence number unique constraint, <code>ConcurrencyException</code> on collision</td>
+        </tr>
+        <tr>
+          <td>Read-side tracking position</td>
+          <td>Custom checkpoint table (equivalent to Kinesis sequence number)</td>
+          <td><code>token_entry</code>, managed automatically by tracking processor</td>
+        </tr>
+        <tr>
+          <td>Projection replay</td>
+          <td>Custom re-read and reprocess logic per projection</td>
+          <td>Token reset via framework API; processor handles replay automatically</td>
+        </tr>
+        <tr>
+          <td>Multi-step business processes</td>
+          <td>Custom process table or state machine implementation</td>
+          <td><code>@Saga</code>, persisted in <code>saga_entry</code>, survives restarts</td>
+        </tr>
+        <tr>
+          <td>Outbox pattern</td>
+          <td>Explicit outbox table + relay process + failure handling</td>
+          <td>Structural: event store is the outbox; tracking processor is the relay</td>
+        </tr>
+        <tr>
+          <td>Event schema evolution</td>
+          <td>Manual migration scripts or versioned handlers</td>
+          <td>Built-in upcasting chain — old event formats transformed before handler receives them</td>
+        </tr>
+        <tr>
+          <td>Distributed command routing (multi-service)</td>
+          <td>Manual routing via messaging infrastructure</td>
+          <td>In-process only without Axon Server; Spring Cloud extension needed for distribution</td>
+        </tr>
+        <tr>
+          <td>Kinesis integration</td>
+          <td>Direct producer call from service layer</td>
+          <td>Dedicated tracking processor publisher; no native extension exists</td>
+        </tr>
+        <tr>
+          <td>Unit testing command handling</td>
+          <td>Manual test fixtures, Spring context or mocks required</td>
+          <td><code>AggregateTestFixture</code> — given/when/then without a Spring context</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="footer-note">
+      The main constraint without Axon Server is that command routing is in-process only. Aggregates in the same Spring Boot application can handle any command; aggregates in separate services require either Axon Server or the Spring Cloud extension. For a single-service write model with Kinesis-based fan-out to independent consumers, Axon without Axon Server is a reasonable fit.
+    </div>
+  </section>
+
+  <!-- REFERENCES -->
+  <section class="section card" id="references">
+    <div class="kicker">References</div>
+    <h2>Further reading</h2>
+    <div class="grid two">
+      <div class="sub-card">
+        <h3>Axon Framework documentation</h3>
+        <ul>
+          <li><a href="https://docs.axoniq.io/reference-guide/" target="_blank" rel="noopener">Axon Reference Guide</a> — commands, events, aggregates, sagas, processors</li>
+          <li><a href="https://docs.axoniq.io/reference-guide/axon-framework/events/event-processors/streaming" target="_blank" rel="noopener">Tracking Event Processors</a> — token management and replay</li>
+          <li><a href="https://docs.axoniq.io/reference-guide/axon-framework/events/event-store" target="_blank" rel="noopener">Event Store configuration</a> — JPA and JDBC storage engines</li>
+          <li><a href="https://docs.axoniq.io/reference-guide/axon-framework/sagas" target="_blank" rel="noopener">Sagas</a> — long-running process coordination</li>
+          <li><a href="https://docs.axoniq.io/reference-guide/axon-framework/events/event-processors/dead-letter-queue" target="_blank" rel="noopener">Dead Letter Queue</a> — handling poison events</li>
+          <li><a href="https://docs.axoniq.io/reference-guide/axon-framework/testing" target="_blank" rel="noopener">Testing</a> — AggregateTestFixture and saga test fixtures</li>
+          <li><a href="https://github.com/AxonFramework/AxonFramework" target="_blank" rel="noopener">Axon Framework on GitHub</a></li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Background patterns</h3>
+        <ul>
+          <li><a href="https://martinfowler.com/eaaDev/EventSourcing.html" target="_blank" rel="noopener">Event Sourcing</a> — Martin Fowler</li>
+          <li><a href="https://martinfowler.com/bliki/CQRS.html" target="_blank" rel="noopener">CQRS</a> — Martin Fowler</li>
+          <li><a href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">Transactional Outbox Pattern</a> — microservices.io</li>
+          <li><a href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">Saga Pattern</a> — microservices.io</li>
+          <li><a href="https://www.eventstore.com/blog/what-is-event-sourcing" target="_blank" rel="noopener">What is Event Sourcing?</a> — EventStoreDB blog</li>
+        </ul>
+        <h3 style="margin-top:18px">Related</h3>
+        <ul>
+          <li><a href="https://github.com/AxonFramework/extension-kafka" target="_blank" rel="noopener">Axon Kafka Extension</a> — for Kafka-based event distribution; no native Kinesis equivalent exists</li>
+          <li><a href="https://docs.aws.amazon.com/sdk-for-java/latest/developer-guide/java_kinesis_code_examples.html" target="_blank" rel="noopener">AWS SDK v2 for Java — Kinesis examples</a></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const links = document.querySelectorAll('.toc-link');
+    const sections = Array.from(links)
+      .map(l => {
+        const h = l.getAttribute('href');
+        return h && h.startsWith('#') ? document.querySelector(h) : null;
+      })
+      .filter(Boolean);
+
+    function highlight() {
+      const pos = window.scrollY + 130;
+      let current = null;
+      sections.forEach(s => { if (s && s.offsetTop <= pos) current = s; });
+      links.forEach(l => {
+        l.classList.remove('active');
+        if (current && l.getAttribute('href') === '#' + current.id) {
+          l.classList.add('active');
+        }
+      });
+    }
+
+    highlight();
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => { highlight(); ticking = false; });
+        ticking = true;
+      }
+    });
+
+    links.forEach(l => {
+      l.addEventListener('click', e => {
+        e.preventDefault();
+        const t = document.querySelector(l.getAttribute('href'));
+        if (t) window.scrollTo({ top: t.offsetTop - 80, behavior: 'smooth' });
+      });
+    });
+  });
+</script>
+</body>
+</html>
