@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Spring Boot Architecture Guide</title>
+<title>Spring Architecture Guide: Three-Tier Best Practices</title>
 <style>
   :root {
     --navy:    #eef3fb;
@@ -63,6 +63,30 @@
     margin-bottom: 1.5rem;
     padding-bottom: 1rem;
     border-bottom: 1px solid var(--border);
+  }
+
+  .nav-home-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .nav-home-links a {
+    display: block;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: var(--gold);
+    text-decoration: none;
+    border: 1px solid rgba(29, 80, 184, 0.2);
+    background: rgba(29, 80, 184, 0.06);
+  }
+
+  .nav-home-links a:hover {
+    background: rgba(29, 80, 184, 0.12);
+    color: var(--gold);
+    border-left-color: rgba(29, 80, 184, 0.2);
   }
 
   .nav-section-label {
@@ -383,7 +407,7 @@
     border-right: none;
   }
 
-  tbody td:first-cSFMono-Regular', 'Cascadia Code', Menlo
+  tbody td:first-child {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.76rem;
     color: var(--blue);
@@ -410,7 +434,7 @@
     box-shadow: 0 2px 8px rgba(15, 31, 60, 0.05);
   }
 
-  .rule-card .ruleSFMono-Regular', 'Cascadia Code', Menlo
+  .rule-card .rule-num {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
     color: var(--gold-dim);
@@ -543,6 +567,11 @@
 <nav>
   <div class="nav-logo">Architecture<br>Guide</div>
 
+  <div class="nav-home-links">
+    <a href="index.html">Back to Three-Tier Index</a>
+    <a href="../index.html">Back to Research Home</a>
+  </div>
+
   <span class="nav-section-label">Three-Tier</span>
   <a href="#overview">Overview</a>
   <a href="#layer-rules">Layer Rules</a>
@@ -574,7 +603,7 @@
   <!-- HERO -->
   <div class="hero">
     <div class="hero-eyebrow">// Spring Boot · Java · Architecture</div>
-    <h1>Three-Tier<br><span>Best Practices</span></h1>
+    <h1>Spring Architecture Guide<br><span>Three-Tier Best Practices</span></h1>
     <p class="hero-sub">Evolving the Spring Initializer scaffold into a disciplined, extensible architecture — and knowing when to go further.</p>
     <div class="hero-badges">
       <span class="badge">Spring Boot</span>
@@ -1605,6 +1634,11 @@ class JpaOrderRepository implements OrderRepository {
     <div class="section-eyebrow">// Section 13</div>
     <h2>When to Evolve Beyond Three-Tier</h2>
     <p class="section-intro">Adding architectural complexity before the problem demands it is a cost with no benefit. These are signals that the disciplined three-tier structure is approaching its limits.</p>
+
+    <div class="callout">
+      <strong>Event sourcing boundary:</strong> If the core domain requires extensive event sourcing (event streams as source of truth, replay, snapshotting, and saga-style orchestration), a CRUD-first three-tier write model is usually not the right long-term fit. Use the three-tier discipline here as a baseline, but evaluate an event-sourced architecture explicitly.
+      <div style="margin-top: 0.5rem;"><a href="../event-sourcing/index.html">See event sourcing research</a></div>
+    </div>
 
     <div class="table-wrap">
       <table>

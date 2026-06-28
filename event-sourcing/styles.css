@@ -250,6 +250,45 @@ a:hover { color: var(--accent); }
   text-transform: uppercase; letter-spacing: 0.06em;
 }
 
+/* Greenfield specific layout elements */
+.svg-wrap {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px;
+  overflow-x: auto;
+  margin-top: 14px;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(29, 80, 184, 0.08);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.note {
+  margin-top: 14px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: #f8fbff;
+  border: 1px solid rgba(29, 80, 184, 0.2);
+  color: #1e3a6e;
+  font-size: 0.92rem;
+}
+.note.warn {
+  background: #fffbeb;
+  border-color: rgba(146, 64, 14, 0.28);
+  color: #7c2d12;
+}
+
+footer {
+  margin-top: 22px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  text-align: center;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .grid.two, .grid.three, .flow, .flow.two, .flow.three { grid-template-columns: 1fr; }
