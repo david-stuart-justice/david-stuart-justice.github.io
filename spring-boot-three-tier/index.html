@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spring Boot Architecture — Where to Start</title>
+  <link rel="stylesheet" href="../event-sourcing/styles.css">
+  <style>
+    .diagram svg { min-width: 0; height: auto; }
+    .diagram.compact svg { max-width: 760px; margin: 0 auto; display: block; }
+    .diagram text { font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif; }
+
+    .principle-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+      margin: 1.25rem 0;
+    }
+
+    .principle-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1.25rem 1.4rem;
+      box-shadow: 0 2px 8px rgba(15, 31, 60, 0.05);
+    }
+
+    .principle-num {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.4rem;
+    }
+
+    .principle-title {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    .principle-body {
+      font-size: 0.86rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .principle-consequence {
+      margin-top: 0.6rem;
+      font-size: 0.82rem;
+      color: var(--text);
+      border-left: 2px solid var(--accent);
+      padding-left: 0.7rem;
+    }
+
+    .evolution-path {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin: 1.25rem 0;
+      overflow-x: auto;
+    }
+
+    .evolution-step {
+      flex: 1;
+      min-width: 160px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-right: none;
+      padding: 1rem 1.1rem;
+    }
+
+    .evolution-step:first-child { border-radius: 12px 0 0 12px; }
+    .evolution-step:last-child  { border-radius: 0 12px 12px 0; border-right: 1px solid var(--line); }
+
+    .evolution-step.default {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+    }
+
+    .evolution-label {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+
+    .evolution-step.default .evolution-label { color: var(--accent); }
+
+    .evolution-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.3rem;
+    }
+
+    .evolution-desc {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .guide-section-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.6rem;
+      margin: 1rem 0;
+    }
+
+    .guide-section-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.8rem 1rem;
+    }
+
+    .guide-section-num {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 2rem;
+      padding-top: 0.1rem;
+    }
+
+    .guide-section-text strong {
+      display: block;
+      font-size: 0.84rem;
+      color: var(--text);
+      margin-bottom: 0.15rem;
+    }
+
+    .guide-section-text span {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .breakdown-list {
+      list-style: none;
+      margin: 0.75rem 0 1rem;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .breakdown-list li {
+      display: flex;
+      gap: 0.6rem;
+      align-items: flex-start;
+      font-size: 0.88rem;
+      color: var(--text);
+    }
+
+    .breakdown-list li::before {
+      content: "→";
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      flex-shrink: 0;
+      padding-top: 0.1rem;
+    }
+
+    .cta-block {
+      background: linear-gradient(135deg, rgba(29, 80, 184, 0.07), rgba(3, 105, 161, 0.05));
+      border: 1px solid var(--accent);
+      border-radius: 16px;
+      padding: 1.75rem 2rem;
+      margin: 2rem 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .cta-block p {
+      font-size: 0.95rem;
+      color: var(--text);
+      margin: 0;
+      max-width: 520px;
+    }
+
+    .cta-link {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.65rem 1.4rem;
+      border-radius: 8px;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    .cta-link:hover { background: #1a43b8; }
+  </style>
+</head>
+<body>
+<main class="shell">
+
+  <section class="hero">
+    <div class="eyebrow">Architecture Research · Spring Boot</div>
+    <h1>Spring Boot Architecture — Where to Start</h1>
+    <p class="lead">
+      The Spring Initializer gets you running in minutes. It does not give you an architecture. These are the principles that make the default structure sustainable as the codebase grows.
+    </p>
+    <div class="pill-row">
+      <span class="pill">Spring Boot</span>
+      <span class="pill">Java 21+</span>
+      <span class="pill">Three-Tier Architecture</span>
+    </div>
+  </section>
+
+  <!-- ── SECTION 1: THE PROBLEM ── -->
+  <section class="section card featured">
+    <div class="kicker">The Starting Point</div>
+    <h2>What Spring Boot Gives You — and What It Doesn't</h2>
+
+    <p>Spring Boot's scaffold is a reasonable starting point: a <code>@RestController</code>, a <code>@Service</code>, a JPA repository, and an entity. Requests arrive, data is saved, responses are returned. It works.</p>
+
+    <p>What it doesn't provide is discipline around where logic lives, which types cross which boundaries, or what happens when business rules change. Without explicit rules, the scaffold drifts:</p>
+
+    <ul class="breakdown-list">
+      <li>Entities travel unchanged from repositories to controllers, coupling the API contract directly to the database schema. A column rename breaks a client.</li>
+      <li>Business rules accumulate in services until they become large coordination classes that are difficult to test and expensive to change.</li>
+      <li>Tests require a full Spring context because the service depends directly on JPA, making unit tests slow or impossible.</li>
+      <li>A lazy-loading exception appears in production when Jackson tries to serialise an entity outside a transaction.</li>
+      <li>Two developers editing related features break each other's work because there are no enforced boundaries between concerns.</li>
+    </ul>
+
+    <p>None of this is caused by Spring Boot. It is caused by the absence of enforced boundaries.</p>
+  </section>
+
+  <!-- ── SECTION 2: THE LAYER DIAGRAM ── -->
+  <section class="section card">
+    <div class="kicker">The Structure</div>
+    <h2>The Three-Tier Model</h2>
+    <p>The default scaffold already maps to a three-tier structure. The discipline is in enforcing what each tier is allowed to do and what types may cross each boundary.</p>
+
+    <div class="diagram compact" style="margin: 1.25rem 0;">
+      <svg viewBox="0 0 760 190" role="img" aria-label="Controller to Service to Repository dependency diagram">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"/>
+          </marker>
+        </defs>
+
+        <rect x="28" y="54" width="180" height="82" rx="14" fill="#bfdbfe" stroke="#1d4ed8" stroke-width="2"/>
+        <text x="118" y="88" text-anchor="middle" font-size="15" fill="#0f1f33" font-weight="600">Controller</text>
+        <text x="118" y="108" text-anchor="middle" font-size="12" fill="#1e3a8a">HTTP · validation · routing</text>
+
+        <rect x="290" y="54" width="180" height="82" rx="14" fill="#7dd3fc" stroke="#0369a1" stroke-width="2"/>
+        <text x="380" y="88" text-anchor="middle" font-size="15" fill="#0f1f33" font-weight="600">Service</text>
+        <text x="380" y="108" text-anchor="middle" font-size="12" fill="#0c4a6e">Business logic · orchestration</text>
+
+        <rect x="552" y="54" width="180" height="82" rx="14" fill="#bae6fd" stroke="#0ea5e9" stroke-width="2"/>
+        <text x="642" y="88" text-anchor="middle" font-size="15" fill="#0f1f33" font-weight="600">Repository</text>
+        <text x="642" y="108" text-anchor="middle" font-size="12" fill="#075985">Persistence · JPA entities</text>
+
+        <line x1="208" y1="95" x2="290" y2="95" stroke="#1d4ed8" stroke-width="2.2" marker-end="url(#arr)"/>
+        <line x1="470" y1="95" x2="552" y2="95" stroke="#1d4ed8" stroke-width="2.2" marker-end="url(#arr)"/>
+
+        <text x="380" y="168" text-anchor="middle" font-size="12" fill="#4a6080" font-style="italic">Dependencies point downward only</text>
+      </svg>
+    </div>
+
+    <p>The direction of dependency is fixed: downward only. Controllers know about services. Services know about repositories. Nothing calls back up through the layers. This is the rule that everything else depends on.</p>
+  </section>
+
+  <!-- ── SECTION 3: THREE PRINCIPLES ── -->
+  <section class="section card">
+    <div class="kicker">Core Principles</div>
+    <h2>Three Principles That Prevent Drift</h2>
+
+    <div class="principle-grid">
+      <div class="principle-card">
+        <div class="principle-num">Principle 01</div>
+        <div class="principle-title">Strict Layer Boundaries</div>
+        <div class="principle-body">Each layer owns one responsibility. Controllers own HTTP. Services own business logic. Repositories own persistence. No layer reaches past the next one.</div>
+        <div class="principle-consequence">Without this: business logic accumulates in controllers and controllers call repositories directly. The service layer becomes optional, then absent.</div>
+      </div>
+
+      <div class="principle-card">
+        <div class="principle-num">Principle 02</div>
+        <div class="principle-title">Distinct Types at Every Boundary</div>
+        <div class="principle-body">Each layer owns its own types. The API request is not the service DTO. The service DTO is not the JPA entity. Mappers translate at each crossing.</div>
+        <div class="principle-consequence">Without this: a renamed column breaks an API client. A schema change propagates through every layer. The database and the API become the same thing.</div>
+      </div>
+
+      <div class="principle-card">
+        <div class="principle-num">Principle 03</div>
+        <div class="principle-title">Business Logic Belongs in the Domain Model</div>
+        <div class="principle-body">State transitions belong on the entity. <code>order.ship()</code> belongs on <code>Order</code>, not duplicated across every service that handles orders.</div>
+        <div class="principle-consequence">Without this: the same rule is written in multiple places. One copy is updated; others are not. Tests target service methods when they should target domain behaviour.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 4: WHY THEY WORK TOGETHER ── -->
+  <section class="section card">
+    <div class="kicker">Why It Works</div>
+    <h2>The Principles Create Seams</h2>
+
+    <p>Each principle creates a seam — a boundary at which one part of the codebase can change without affecting another. The seams are what make a codebase maintainable rather than fragile.</p>
+
+    <ul class="breakdown-list">
+      <li><strong>Layer boundaries</strong> mean an HTTP API change — a new header, a different status code, a revised serialisation format — does not reach business logic.</li>
+      <li><strong>Type boundaries</strong> mean a schema change — a renamed column, a split field, a new table — does not reach controllers. The mapper absorbs it.</li>
+      <li><strong>Domain logic on entities</strong> means business rules have one home. They are tested once, applied consistently, and found in one place when they need to change.</li>
+    </ul>
+
+    <p>The seams do not appear automatically. They require a deliberate decision at every layer boundary to translate types rather than pass them through, and a deliberate decision on every entity to protect state rather than expose setters.</p>
+
+    <div class="warn-note" style="margin-top: 1rem;">
+      The benefit compounds over time. A codebase built on these principles in its first six months is straightforward to extend at eighteen months. One that skipped the discipline is usually being rewritten.
+    </div>
+  </section>
+
+  <!-- ── SECTION 5: EVOLUTION PATH ── -->
+  <section class="section card">
+    <div class="kicker">The Bigger Picture</div>
+    <h2>Three-Tier Is the Right Default — Not a Starting Point</h2>
+
+    <p>Disciplined Three-Tier is a complete and maintainable architectural end state for most Spring Boot applications. It is not a stepping stone to something more sophisticated.</p>
+
+    <div class="evolution-path">
+      <div class="evolution-step default">
+        <div class="evolution-label">Default choice</div>
+        <div class="evolution-title">Disciplined Three-Tier</div>
+        <div class="evolution-desc">Layer boundaries, type discipline, domain logic on entities, port interfaces at persistence boundaries. Correct for most teams and most applications.</div>
+      </div>
+      <div class="evolution-step">
+        <div class="evolution-label">When useful</div>
+        <div class="evolution-title">+ Selective DDD</div>
+        <div class="evolution-desc">Value objects, aggregate roots, domain events. Add where the domain model benefits — not as a blanket policy.</div>
+      </div>
+      <div class="evolution-step">
+        <div class="evolution-label">Specific problems only</div>
+        <div class="evolution-title">+ Clean / Hexagonal</div>
+        <div class="evolution-desc">Separate domain objects, explicit adapter packages, delivery-agnostic use cases. Justified by JPA-hostile models, multiple delivery mechanisms, or large teams needing enforced hard boundaries.</div>
+      </div>
+    </div>
+
+    <p>Each step adds cost — more classes, more abstraction, steeper onboarding. The right decision is to apply the discipline in this guide first and move further only when a specific problem demands it. Migration is straightforward when the seams are already in place.</p>
+  </section>
+
+  <!-- ── SECTION 6: GUIDE MAP ── -->
+  <section class="section card">
+    <div class="kicker">What's in the Guide</div>
+    <h2>The Full Architecture Guide</h2>
+    <p>The guide covers each principle in depth: the rules, the code, the trade-offs, and the tests. These are the thirteen sections:</p>
+
+    <div class="guide-section-list">
+      <div class="guide-section-item">
+        <span class="guide-section-num">01</span>
+        <div class="guide-section-text">
+          <strong>Three-Tier Overview</strong>
+          <span>The core rule and the layer diagram. What each layer is for and why the direction of dependency matters.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">02</span>
+        <div class="guide-section-text">
+          <strong>Layer Responsibilities</strong>
+          <span>Exact rules for each layer. What belongs where, and what happens when it ends up in the wrong place.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">03</span>
+        <div class="guide-section-text">
+          <strong>Distinct Types at Every Boundary</strong>
+          <span>Request models, response models, DTOs, and entities. Why conflating them creates invisible coupling.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">04</span>
+        <div class="guide-section-text">
+          <strong>Mappers</strong>
+          <span>How mappers contain boundary changes. Code examples without and with a mapper. MapStruct as the practical default.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">05</span>
+        <div class="guide-section-text">
+          <strong>CQRS in the Service Layer</strong>
+          <span>Commands return void. Queries are read-only. A lightweight split that improves clarity without requiring event sourcing.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">06</span>
+        <div class="guide-section-text">
+          <strong>Thin Controllers</strong>
+          <span>What belongs in a controller and what doesn't. A controller that makes business decisions is a service in disguise.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">07</span>
+        <div class="guide-section-text">
+          <strong>Controller Package Placement</strong>
+          <span>Where a controller lives is independent of what it can call. Organising controllers that orchestrate across bounded contexts.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">08</span>
+        <div class="guide-section-text">
+          <strong>Coding to Interfaces</strong>
+          <span>Blanket interface-per-service adds indirection without return. Where interfaces earn their place and where they are noise.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">09</span>
+        <div class="guide-section-text">
+          <strong>Testing Strategy</strong>
+          <span>Unit tests for domain and service. Slice tests for controllers and repositories. Full-context tests only where necessary.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">10</span>
+        <div class="guide-section-text">
+          <strong>Migrating Towards DDD</strong>
+          <span>Five incremental steps: push rules into entities, introduce value objects, name the aggregate root, add domain events, organise into bounded contexts.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">11</span>
+        <div class="guide-section-text">
+          <strong>Three-Tier vs Clean Architecture</strong>
+          <span>A direct comparison. Disciplined Three-Tier closes most of the apparent gaps. Where Clean Architecture adds value and where it adds cost without return.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">12</span>
+        <div class="guide-section-text">
+          <strong>Ports Without Full Clean Architecture</strong>
+          <span>A port interface at persistence and external service boundaries gives the main practical benefit of hexagonal architecture with minimal overhead.</span>
+        </div>
+      </div>
+      <div class="guide-section-item">
+        <span class="guide-section-num">13</span>
+        <div class="guide-section-text">
+          <strong>When to Evolve</strong>
+          <span>Specific signals that the disciplined Three-Tier structure is reaching its limits, and what each signal suggests.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cta-block">
+      <p>The full guide covers all thirteen sections with code examples, trade-off tables, and collapsible detail for each decision.</p>
+      <a href="spring-architecture-guide.html" class="cta-link">Read the Full Guide →</a>
+    </div>
+
+  </section>
+
+  <section id="references" class="section card">
+    <div class="kicker">References</div>
+    <h2>Primary and Supporting Sources</h2>
+    <ol>
+      <li><a href="https://docs.spring.io/spring-framework/reference/data-access/transaction/declarative/annotations.html" target="_blank" rel="noopener">Spring Framework Transaction Management</a>.</li>
+      <li><a href="https://docs.jboss.org/hibernate/orm/current/userguide/html_single/Hibernate_User_Guide.html#transactions-read-only" target="_blank" rel="noopener">Hibernate read-only transaction behavior</a>.</li>
+      <li><a href="https://mapstruct.org/documentation/stable/reference/html/" target="_blank" rel="noopener">MapStruct Reference Guide</a>.</li>
+      <li><a href="https://martinfowler.com/bliki/CQRS.html" target="_blank" rel="noopener">Martin Fowler: CQRS</a>.</li>
+      <li><a href="https://testcontainers.com/guides/testing-spring-boot-rest-api-using-testcontainers/" target="_blank" rel="noopener">Testcontainers guide for Spring Boot</a>.</li>
+      <li><a href="https://www.archunit.org/" target="_blank" rel="noopener">ArchUnit project</a>.</li>
+      <li><a href="https://martinfowler.com/bliki/BoundedContext.html" target="_blank" rel="noopener">Martin Fowler: Bounded Context</a>.</li>
+    </ol>
+  </section>
+
+  <div style="margin-top: 40px; text-align: center;">
+    <a href="../index.html" class="pill" style="text-decoration: none;">← Back to Research Portal</a>
+  </div>
+
+  <footer style="margin-top: 60px; text-align: center; font-size: 0.9rem; color: var(--muted); padding-bottom: 40px;">
+    &copy; 2026 Spring Architecture Research
+  </footer>
+
+</main>
+</body>
+</html>
