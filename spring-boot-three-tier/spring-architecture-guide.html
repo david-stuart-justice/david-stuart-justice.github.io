@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spring Boot Architecture Guide</title>
+<style>
+  :root {
+    --navy:    #eef3fb;
+    --card:    rgba(245, 249, 255, 0.96);
+    --surface: #f0f9ff;
+    --border:  #c5d5e8;
+    --gold:    #1d4ed8;
+    --gold-dim:#0369a1;
+    --blue:    #0369a1;
+    --green:   #166534;
+    --red:     #dc2626;
+    --text:    #0f1f33;
+    --muted:   #4a6080;
+    --code-bg: #0f172a;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; font-size: 15px; }
+
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(29, 80, 184, 0.09), transparent 35%),
+      radial-gradient(circle at bottom right, rgba(3, 105, 161, 0.11), transparent 35%),
+      linear-gradient(180deg, #f0f5fd 0%, var(--navy) 100%);
+    color: var(--text);
+    font-family: 'Avenir Next', 'Segoe UI', system-ui, sans-serif;
+    font-weight: 400;
+    line-height: 1.7;
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 100vh;
+  }
+
+  /* ── NAV ── */
+  nav {
+    background: linear-gradient(135deg, rgba(255,255,255,0.97), rgba(230,242,255,0.96));
+    border-right: 1px solid var(--border);
+    padding: 2rem 1.25rem;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    box-shadow: 0 10px 28px rgba(15, 31, 60, 0.07);
+  }
+
+  .nav-logo {
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--gold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-section-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 1.25rem 0 0.4rem 0.5rem;
+  }
+
+  nav a {
+    display: block;
+    padding: 0.35rem 0.75rem;
+    border-radius: 5px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.82rem;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+
+  nav a:hover {
+    color: var(--text);
+    background: var(--surface);
+    border-left-color: var(--gold);
+  }
+
+  /* ── MAIN ── */
+  main {
+    padding: 3rem 3.5rem;
+    max-width: 900px;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, rgba(255,255,255,0.97), rgba(230,242,255,0.96));
+    border: 1px solid rgba(29, 80, 184, 0.18);
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(15, 31, 60, 0.10);
+    padding: 44px;
+    margin-bottom: 3.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .hero::after {
+    content: "";
+    position: absolute;
+    inset: auto -80px -90px auto;
+    width: 300px; 
+    height: 300px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(29,80,184,0.13), transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-eyebrow {
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+    font-size: 0.72rem;
+    color: var(--gold);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+  }
+
+  .hero h1 {
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.15;
+    margin-bottom: 0.75rem;
+  }
+
+  .hero h1 span { color: var(--gold); }
+
+  .hero-sub {
+    color: var(--muted);
+    font-size: 0.95rem;
+    max-width: 580px;
+  }
+
+  .hero-badges {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 1.25rem;
+  }
+
+  .badge {
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.65rem;
+    border-radius: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  /* ── SECTIONS ── */
+  section { margin-bottom: 3.5rem; }
+
+  .section-eyebrow {
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+    font-size: 0.68rem;
+    color: var(--gold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  h2 {
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 0.3rem;
+  }
+
+  .section-intro {
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin-bottom: 1.75rem;
+    border-left: 2px solid var(--gold-dim);
+    padding-left: 1rem;
+  }
+
+  h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 1.5rem 0 0.6rem;
+  }
+
+  p { margin-bottom: 0.8rem; font-size: 0.88rem; color: var(--text); }
+
+  /* ── CODE ── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold-dim);
+    border-radius: 6px;
+    padding: 1.1rem 1.25rem;
+    overflow-x: auto;
+    margin: 0.75rem 0 1rem;
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+    font-size: 0.76rem;
+    line-height: 1.65;
+    color: #9BB8D4;
+  }
+
+  code {
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+    font-size: 0.78em;
+    background: rgba(29, 80, 184, 0.08);
+    border: 1px solid var(--border);
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+    color: var(--blue);
+  }
+
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  /* ── DIAGRAM ── */
+  .diagram {
+    background: linear-gradient(135deg, rgba(240, 249, 255, 0.8), rgba(236, 245, 254, 0.9));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1rem 0 1.5rem;
+    overflow-x: auto;
+  }
+
+  .diagram pre {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: var(--text);
+    font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  .diagram .layer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.6rem 1rem;
+    margin: 0.3rem 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    gap: 0.75rem;
+    position: relative;
+  }
+
+  .layer-label {
+    font-weight: 600;
+    min-width: 160px;
+    text-align: center;
+  }
+
+  .layer-note {
+    font-size: 0.7rem;
+    color: #475569;
+    font-style: italic;
+  }
+
+  .layer.presentation { border-color: #1d4ed8; color: #1e3a8a; background: rgba(191, 219, 254, 0.6); border-width: 2px; }
+  .layer.application  { border-color: #0369a1; color: #0c4a6e; background: rgba(186, 230, 253, 0.6); border-width: 2px; }
+  .layer.domain       { border-color: #059669; color: #064e3b; background: rgba(167, 243, 208, 0.5); border-width: 2px; }
+  .layer.infra        { border-color: #64748b; color: #334155; background: rgba(226, 232, 240, 0.6); border-width: 2px; }
+
+  .arrow {
+    text-align: center;
+    color: var(--blue);
+    font-size: 1rem;
+    line-height: 1;
+    margin: 0.1rem 0;
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+  }
+
+  /* ── COLLAPSIBLE ── */
+  details {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    margin: 0.6rem 0;
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+    box-shadow: 0 2px 8px rgba(15, 31, 60, 0.05);
+  }
+
+  details[open] {
+    box-shadow: 0 0 0 1px var(--gold-dim), 0 4px 12px rgba(15, 31, 60, 0.08);
+  }
+
+  summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.9rem 1.2rem;
+    cursor: pointer;
+    list-style: none;
+    font-weight: 500;
+    font-size: 0.88rem;
+    color: var(--text);
+    user-select: none;
+  }
+
+  summary::-webkit-details-marker { display: none; }
+
+  summary::before {
+    content: '▶';
+    font-size: 0.6rem;
+    color: var(--gold);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+
+  details[open] summary::before { transform: rotate(90deg); }
+
+  .details-body {
+    padding: 0 1.5rem 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .details-body h3 { margin-top: 1rem; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; margin: 1rem 0; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  thead th {
+    background: var(--surface);
+    color: var(--muted);
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 0.7rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  thead th:last-child {
+    border-right: none;
+  }
+
+  tbody tr:nth-child(even) td { background: rgba(240,249,255,0.5); }
+
+  tbody td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    color: var(--text);
+    vertical-align: top;
+  }
+
+  tbody td:last-child {
+    border-right: none;
+  }
+
+  tbody td:first-cSFMono-Regular', 'Cascadia Code', Menlo
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.76rem;
+    color: var(--blue);
+    white-space: nowrap;
+  }
+
+  .tick  { color: #059669; font-weight: 600; }
+  .cross { color: #dc2626; font-weight: 600; }
+  .warn  { color: #d97706; font-weight: 600; }
+
+  /* ── RULE CARDS ── */
+  .rule-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+
+  .rule-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 2px 8px rgba(15, 31, 60, 0.05);
+  }
+
+  .rule-card .ruleSFMono-Regular', 'Cascadia Code', Menlo
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--gold-dim);
+    margin-bottom: 0.3rem;
+  }
+
+  .rule-card .rule-title {
+    font-weight: 600;
+    font-size: 0.84rem;
+    color: var(--text);
+    margin-bottom: 0.3rem;
+  }
+
+  .rule-card .rule-desc {
+    font-size: 0.77rem;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── TYPE CARDS ── */
+  .type-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+
+  .type-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(15, 31, 60, 0.05);
+  }
+
+  .type-card .type-name {
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+  }
+
+  .type-card .type-role {
+    font-size: 0.77rem;
+    color: var(--muted);
+    margin-bottom: 0.6rem;
+  }
+
+  .type-card.req  .type-name { color: var(--blue);  }
+  .type-card.res  .type-name { color: var(--green); }
+  .type-card.dto  .type-name { color: var(--gold);  }
+  .type-card.ent  .type-name { color: var(--muted); }
+
+  /* ── STEP TIMELINE ── */
+  .timeline {
+    position: relative;
+    padding-left: 2rem;
+    margin: 1.5rem 0;
+  }
+
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.55rem;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 1px;
+    background: var(--border);
+  }
+
+  .step {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+
+  .step::before {
+    content: attr(data-step);
+    position: absolute;
+    left: -2rem;
+    top: 0.1rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    background: var(--gold);
+    color: #fff;
+    font-family: 'SFMono-Regular', 'Cascadia Code', Menlo, monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .step h3 { margin-top: 0; }
+
+  /* ── CALLOUT ── */
+  .callout {
+    background: rgba(29,80,184,0.07);
+    border: 1px solid var(--gold-dim);
+    border-radius: 6px;
+    padding: 0.9rem 1.1rem;
+    margin: 1rem 0;
+    font-size: 0.84rem;
+    color: var(--text);
+  }
+
+  .callout strong { color: var(--gold); }
+
+  /* ── FOOTER ── */
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.76rem;
+    color: var(--muted);
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    body { grid-template-columns: 1fr; }
+    nav { display: none; }
+    main { padding: 1.5rem; }
+    .type-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─────────────── SIDEBAR ─────────────── -->
+<nav>
+  <div class="nav-logo">Architecture<br>Guide</div>
+
+  <span class="nav-section-label">Three-Tier</span>
+  <a href="#overview">Overview</a>
+  <a href="#layer-rules">Layer Rules</a>
+  <a href="#types">Distinct Types</a>
+  <a href="#mappers">Mappers</a>
+  <a href="#cqrs">CQRS in Service Layer</a>
+  <a href="#controllers">Controllers</a>
+  <a href="#controller-packages">Controller Packages</a>
+  <a href="#interfaces">Coding to Interfaces</a>
+  <a href="#testing">Testing</a>
+
+  <span class="nav-section-label">DDD Migration</span>
+  <a href="#ddd-intro">Why Migrate</a>
+  <a href="#step-1">Step 1 — Entities</a>
+  <a href="#step-2">Step 2 — Value Objects</a>
+  <a href="#step-3">Step 3 — Aggregates</a>
+  <a href="#step-4">Step 4 — Domain Events</a>
+  <a href="#step-5">Step 5 — Bounded Contexts</a>
+
+  <span class="nav-section-label">Comparison</span>
+  <a href="#comparison">vs Clean Architecture</a>
+  <a href="#ports-pragmatic">Ports Without Full Clean Arch</a>
+  <a href="#when">When to Evolve</a>
+</nav>
+
+<!-- ─────────────── MAIN ─────────────── -->
+<main>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">// Spring Boot · Java · Architecture</div>
+    <h1>Three-Tier<br><span>Best Practices</span></h1>
+    <p class="hero-sub">Evolving the Spring Initializer scaffold into a disciplined, extensible architecture — and knowing when to go further.</p>
+    <div class="hero-badges">
+      <span class="badge">Spring Boot</span>
+      <span class="badge">Java 23+</span>
+      <span class="badge">JPA</span>
+      <span class="badge">DDD</span>
+      <span class="badge">CQRS</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 1: THREE-TIER OVERVIEW -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="overview">
+    <div class="section-eyebrow">// Section 01</div>
+    <h2>Three-Tier Architecture</h2>
+    <p class="section-intro">The default Spring Initializer structure is not wrong — it just needs discipline to remain sustainable. These are the rules that make it extensible without requiring an architectural overhaul.</p>
+
+    <div class="diagram">
+      <div class="layer presentation">
+        <span class="layer-label">Presentation Layer</span>
+        <span class="layer-note">Controllers · Request/Response models · @Valid</span>
+      </div>
+      <div class="arrow">↓ &nbsp; dependencies point downward &nbsp; ↓</div>
+      <div class="layer application">
+        <span class="layer-label">Service Layer</span>
+        <span class="layer-note">Business logic · Orchestration · DTOs</span>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="layer infra">
+        <span class="layer-label">Repository Layer</span>
+        <span class="layer-note">Persistence · JPA Entities · Spring Data</span>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Core rule:</strong> Dependencies point downward only. Controllers know about services. Services know about repositories. Nothing points back up.
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 2: LAYER RULES -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="layer-rules">
+    <div class="section-eyebrow">// Section 02</div>
+    <h2>Layer Responsibilities</h2>
+    <p class="section-intro">Each layer has exactly one job. When logic ends up in the wrong layer, the seams break and the architecture becomes cosmetic.</p>
+
+    <div class="rule-grid">
+      <div class="rule-card">
+        <div class="rule-num">01</div>
+        <div class="rule-title">Controller handles HTTP only</div>
+        <div class="rule-desc">Deserialisaton, validation, routing, serialisation. No business rules. No repository calls.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-num">02</div>
+        <div class="rule-title">Service contains business logic</div>
+        <div class="rule-desc">Orchestrates, applies rules, coordinates repositories. Knows nothing of HTTP or JSON.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-num">03</div>
+        <div class="rule-title">Repository handles persistence only</div>
+        <div class="rule-desc">Queries, saves, and deletes. No business rules. Returns entities — not DTOs.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-num">04</div>
+        <div class="rule-title">Entity protects its own state</div>
+        <div class="rule-desc">Business rules live in the model. Public setters for state transitions are a warning sign.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-num">05</div>
+        <div class="rule-title">No 1:1 controller-to-service rule</div>
+        <div class="rule-desc">A controller can call multiple services. Multiple controllers can share one service. Follow the domain, not the scaffold.</div>
+      </div>
+      <div class="rule-card">
+        <div class="rule-num">06</div>
+        <div class="rule-title">Map at every boundary</div>
+        <div class="rule-desc">Translate between types as you cross layers. Never pass an entity to the controller or a request model to the repository.</div>
+      </div>
+    </div>
+
+    <details>
+      <summary>Why not call repositories directly from controllers?</summary>
+      <div class="details-body">
+        <p>Bypassing the service layer collapses your business logic into the controller. When a second controller needs the same logic you duplicate it. When the logic changes you have to find every caller. The service layer is the single point of truth for business rules — removing it removes the seam.</p>
+        <pre><code>// ❌ Don't
+@GetMapping("/{id}")
+public OrderResponse getOrder(@PathVariable Long id) {
+    Order entity = orderRepository.findById(id).orElseThrow();
+    return new OrderResponse(entity.getId(), entity.getStatus());
+}
+
+// ✅ Do
+@GetMapping("/{id}")
+public OrderResponse getOrder(@PathVariable Long id) {
+    return orderService.getOrder(id);
+}</code></pre>
+      </div>
+    </details>
+
+    <details>
+      <summary>How many services can one controller call?</summary>
+      <div class="details-body">
+        <p>As many as the use case requires. A checkout endpoint might reasonably orchestrate an order service, payment service, and notification service. The controller is an entry point, not a 1:1 proxy.</p>
+        <pre><code>@PostMapping("/orders/{id}/checkout")
+public CheckoutResponse checkout(@PathVariable Long id) {
+    Order order     = orderService.getOrder(id);
+    PaymentResult r = paymentService.charge(order);
+    notificationService.confirmOrder(order, r);
+    return new CheckoutResponse(order, r);
+}</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 3: DISTINCT TYPES -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="types">
+    <div class="section-eyebrow">// Section 03</div>
+    <h2>Distinct Types at Every Boundary</h2>
+    <p class="section-intro">Four distinct type categories, each owned by a specific layer. Conflating them creates invisible coupling between layers that should be independent.</p>
+
+    <div class="type-grid">
+      <div class="type-card req">
+        <div class="type-name">Request Model</div>
+        <div class="type-role">Presentation layer inbound</div>
+        <pre><code>record PlaceOrderRequest(
+  @NotBlank String customerId,
+  @NotEmpty
+  List&lt;OrderLineRequest&gt; lines
+) {}</code></pre>
+      </div>
+      <div class="type-card res">
+        <div class="type-name">Response Model</div>
+        <div class="type-role">Presentation layer outbound</div>
+        <pre><code>record OrderResponse(
+  Long id,
+  String status,
+  BigDecimal total
+) {}</code></pre>
+      </div>
+      <div class="type-card dto">
+        <div class="type-name">DTO</div>
+        <div class="type-role">Between service / application layers</div>
+        <pre><code>record OrderSummaryDto(
+  Long id,
+  String status,
+  BigDecimal total
+) {}</code></pre>
+      </div>
+      <div class="type-card ent">
+        <div class="type-name">Entity</div>
+        <div class="type-role">Repository layer only</div>
+        <pre><code>@Entity
+class Order {
+  @Id Long id;
+  String status;
+  BigDecimal total;
+}</code></pre>
+      </div>
+    </div>
+
+    <details>
+      <summary>Problems caused by using the entity as an API type</summary>
+      <div class="details-body">
+        <h3>Schema becomes the API contract</h3>
+        <p>Add a column, it appears in the JSON. Rename a field, a client breaks. The database and the API are independently deployable concerns — they must not be the same object.</p>
+        <h3>Jackson and lazy loading</h3>
+        <p>Serialising a JPA entity outside a transaction triggers <code>LazyInitializationException</code> on any lazily loaded association. The temptation to set everything to <code>EAGER</code> follows, and performance degrades silently.</p>
+        <h3>Mass assignment risk</h3>
+        <pre><code>// Client can POST an id, override internal fields
+@PostMapping
+public void create(@RequestBody Order order) {
+    orderRepository.save(order); // dangerous
+}</code></pre>
+        <h3>Mapping with MapStruct</h3>
+        <p>Eliminates boilerplate without runtime reflection cost.</p>
+        <pre><code>@Mapper(componentModel = "spring")
+public interface OrderMapper {
+    OrderSummaryDto  toDto(Order entity);
+    Order            toEntity(PlaceOrderDto dto);
+    OrderResponse    toResponse(OrderSummaryDto dto);
+}</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 4: MAPPERS -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="mappers">
+    <div class="section-eyebrow">// Section 04</div>
+    <h2>Mappers</h2>
+    <p class="section-intro">Mappers are the mechanism that makes boundary discipline enforceable in practice. Without them, translation logic bleeds into services and controllers, coupling them to the shape of types they should not know about.</p>
+
+    <p>Each boundary owns exactly one mapper. A change on either side of that boundary is contained to the mapper — nothing else needs to change.</p>
+
+    <div class="diagram">
+      <div class="layer presentation"><span class="layer-label">Controller</span><span class="layer-note">PlaceOrderRequest → PlaceOrderDto</span></div>
+      <div class="arrow">↓ &nbsp;[Request Mapper]&nbsp; ↓</div>
+      <div class="layer application"><span class="layer-label">Service</span><span class="layer-note">PlaceOrderDto → Order entity</span></div>
+      <div class="arrow">↓ &nbsp;[Domain Mapper]&nbsp; ↓</div>
+      <div class="layer infra"><span class="layer-label">Repository</span><span class="layer-note">Order entity → OrderSummaryDto</span></div>
+      <div class="arrow">↑ &nbsp;[Domain Mapper]&nbsp; ↑</div>
+      <div class="layer application"><span class="layer-label">Service</span><span class="layer-note">OrderSummaryDto → OrderResponse</span></div>
+      <div class="arrow">↑ &nbsp;[Response Mapper]&nbsp; ↑</div>
+      <div class="layer presentation"><span class="layer-label">Controller</span></div>
+    </div>
+
+    <h3>Without a Mapper</h3>
+    <p>The service is coupled to the internal structure of the entity. A renamed field, changed type, or restructured relationship ripples into service logic.</p>
+    <pre><code>// Service knows entity internals — every field, every type
+public OrderSummaryDto getOrder(Long id) {
+    Order entity = orderRepository.findById(id).orElseThrow();
+    return new OrderSummaryDto(
+        entity.getId(),
+        entity.getStatus().name(),       // knows it's an enum
+        entity.getTotal(),
+        entity.getFirstName() + " " + entity.getLastName() // knows structure
+    );
+}</code></pre>
+
+    <h3>With a Mapper</h3>
+    <pre><code>// Service knows nothing of entity structure
+public OrderSummaryDto getOrder(Long id) {
+    Order entity = orderRepository.findById(id).orElseThrow();
+    return orderMapper.toDto(entity);   // one line, all knowledge isolated
+}
+
+// All translation knowledge lives here and nowhere else
+@Mapper(componentModel = "spring")
+public interface OrderMapper {
+    @Mapping(target = "fullName",
+             expression = "java(e.getFirstName() + ' ' + e.getLastName())")
+    OrderSummaryDto  toDto(Order e);
+    Order            toEntity(PlaceOrderDto dto);
+    OrderResponse    toResponse(OrderSummaryDto dto);
+}</code></pre>
+
+    <details>
+      <summary>What coupling risk does a mapper specifically reduce?</summary>
+      <div class="details-body">
+        <h3>Schema changes contained to one place</h3>
+        <p>Adding a <code>deletedAt</code> soft-delete column, changing <code>status</code> from <code>String</code> to an enum, or splitting <code>name</code> into <code>firstName</code>/<code>lastName</code> — without a mapper these changes propagate into service methods. With one, they're contained to the mapper and the entity.</p>
+        <h3>DTO evolution independent of entity evolution</h3>
+        <p>The API might need to expose computed or combined fields the entity doesn't naturally surface. The mapper absorbs that transformation without polluting the service.</p>
+        <h3>MapStruct vs manual mapping</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Approach</th><th>Pros</th><th>Cons</th></tr></thead>
+            <tbody>
+              <tr><td>MapStruct</td><td>Compile-time, zero reflection, IDE navigable</td><td>Annotation processor setup required</td></tr>
+              <tr><td>Manual in service</td><td>No dependency</td><td>Couples service to entity; scattered across methods</td></tr>
+              <tr><td>Mapper class (manual)</td><td>Centralised, no annotation processor</td><td>Verbose; easy to miss fields</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>MapStruct is the pragmatic default. It generates readable Java at compile time, fails fast on unmapped fields, and has no runtime cost.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 5: CQRS -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="cqrs">
+    <div class="section-eyebrow">// Section 05</div>
+    <h2>CQRS in the Service Layer</h2>
+    <p class="section-intro">Command Query Responsibility Segregation at its simplest is one rule: methods that change state return nothing, methods that read state change nothing. No buses, no event sourcing, no second database required.</p>
+
+    <pre><code>@Service
+public class OrderService {
+
+    // ── Commands: void, @Transactional ───────────────────────────
+    @Transactional
+    public void placeOrder(PlaceOrderRequest req) {
+        Order order = Order.place(req.customerId(), req.lines());
+        orderRepository.save(order);
+    }
+
+    @Transactional
+    public void shipOrder(Long id) {
+        Order order = orderRepository.findById(id).orElseThrow();
+        order.ship();
+        orderRepository.save(order);
+    }
+
+    // ── Queries: return data, readOnly = true ────────────────────
+    @Transactional(readOnly = true)
+    public OrderResponse getOrder(Long id) {
+        return orderRepository.findById(id)
+            .map(this::toResponse)
+            .orElseThrow();
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;OrderSummaryResponse&gt; getByCustomer(String customerId) {
+        return orderRepository.findByCustomerId(customerId)
+            .stream().map(this::toSummary).toList();
+    }
+}</code></pre>
+
+    <details>
+      <summary>Benefits of the command/query split</summary>
+      <div class="details-body">
+        <h3>Commands return void</h3>
+        <p>Stops the habit of saving an entity and immediately returning it as the API response — which is usually the entity leaking out disguised as a response model. If the client needs to know the new ID, return just the ID, not the entity.</p>
+        <h3>Read-only transactions</h3>
+        <p>Hibernate skips dirty checking for <code>readOnly = true</code> transactions. On a busy read path this has a measurable impact. It also documents intent.</p>
+        <h3>Queries can bypass the domain model</h3>
+        <p>If a query becomes a performance concern, it can go straight to a JPA projection without touching domain logic. The seam is already there.</p>
+        <pre><code>@Transactional(readOnly = true)
+public List&lt;OrderSummaryResponse&gt; getByCustomer(String id) {
+    // Projection — no entity hydration, no domain model
+    return orderJpaRepository.findSummariesByCustomerId(id);
+}
+
+// In your Spring Data repo
+interface OrderJpaRepository extends JpaRepository&lt;Order, Long&gt; {
+    @Query("SELECT new com.example.OrderSummaryResponse(o.id, o.status, o.total)" +
+           " FROM Order o WHERE o.customerId = :id")
+    List&lt;OrderSummaryResponse&gt; findSummariesByCustomerId(String id);
+}</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 6: CONTROLLERS -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="controllers">
+    <div class="section-eyebrow">// Section 06</div>
+    <h2>Thin Controllers</h2>
+    <p class="section-intro">A controller that makes business decisions is a service in disguise. Keep controllers as a thin translation layer between HTTP and your application.</p>
+
+    <pre><code>@RestController
+@RequestMapping("/orders")
+public class OrderController {
+
+    private final OrderService orderService;
+
+    // ── Command endpoint ─────────────────────────────────────────
+    @PostMapping
+    public ResponseEntity&lt;Void&gt; placeOrder(
+            @Valid @RequestBody PlaceOrderRequest req) {
+        orderService.placeOrder(req);
+        return ResponseEntity.accepted().build();
+    }
+
+    // ── Query endpoint ───────────────────────────────────────────
+    @GetMapping("/{id}")
+    public OrderResponse getOrder(@PathVariable Long id) {
+        return orderService.getOrder(id);
+    }
+}</code></pre>
+
+    <details>
+      <summary>What belongs in a controller</summary>
+      <div class="details-body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Concern</th><th>Belongs in Controller?</th></tr></thead>
+            <tbody>
+              <tr><td>HTTP status codes</td><td><span class="tick">✓ Yes</span></td></tr>
+              <tr><td>Request deserialisation</td><td><span class="tick">✓ Yes</span></td></tr>
+              <tr><td>@Valid / Bean Validation</td><td><span class="tick">✓ Yes</span></td></tr>
+              <tr><td>Response serialisation</td><td><span class="tick">✓ Yes</span></td></tr>
+              <tr><td>Business rules</td><td><span class="cross">✗ No — service</span></td></tr>
+              <tr><td>Database queries</td><td><span class="cross">✗ No — repository</span></td></tr>
+              <tr><td>Transaction management</td><td><span class="cross">✗ No — service</span></td></tr>
+              <tr><td>Logging</td><td><span class="warn">⚠ AOP preferred</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 7: CONTROLLER PACKAGES -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="controller-packages">
+    <div class="section-eyebrow">// Section 07</div>
+    <h2>Controller Packages</h2>
+    <p class="section-intro">Where a controller lives in the package structure is an organisational decision entirely independent of what it is allowed to call. The two concerns should not be conflated.</p>
+
+    <p>Placing a controller inside a feature package implies the controller belongs to that domain. But a controller that orchestrates across multiple bounded contexts belongs to none of them — it is a delivery mechanism concern sitting in front of the application.</p>
+
+    <div class="type-grid">
+      <div class="type-card req">
+        <div class="type-name">Feature Package</div>
+        <div class="type-role">Controller inside bounded context</div>
+        <pre><code>orders/
+  Order.java
+  OrderService.java
+  OrderRepository.java
+  OrderController.java ← here</code></pre>
+      </div>
+      <div class="type-card res">
+        <div class="type-name">Controllers Package</div>
+        <div class="type-role">Separate delivery layer</div>
+        <pre><code>controllers/
+  OrderController.java ← here
+orders/
+  Order.java
+  OrderService.java
+  OrderRepository.java</code></pre>
+      </div>
+    </div>
+
+    <p>A controllers package becomes the more honest choice when controllers are orchestrating across context boundaries:</p>
+
+    <pre><code>// controllers/CheckoutController.java
+// Orchestrates across three bounded contexts —
+// does not belong inside any single one
+@RestController
+@RequestMapping("/orders")
+public class CheckoutController {
+
+    private final OrderService     orderService;      // orders/
+    private final PaymentService   paymentService;    // payments/
+    private final NotificationService notificationService; // notifications/
+
+    @PostMapping("/{id}/checkout")
+    public CheckoutResponse checkout(@PathVariable Long id) {
+        Order         order  = orderService.getOrder(id);
+        PaymentResult result = paymentService.charge(order);
+        notificationService.confirmOrder(order, result);
+        return new CheckoutResponse(order, result);
+    }
+}</code></pre>
+
+    <details>
+      <summary>Cross-context calls: controller vs service</summary>
+      <div class="details-body">
+        <p>The controller is one of the few legitimate places to orchestrate across bounded context boundaries. A service calling another context's service is a warning sign — it creates direct coupling between contexts that domain events are designed to avoid.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Caller</th><th>Cross-context call</th><th>Verdict</th></tr></thead>
+            <tbody>
+              <tr><td>Controller</td><td>Calls OrderService + PaymentService</td><td><span class="tick">✓ Acceptable</span> — delivery mechanism orchestration</td></tr>
+              <tr><td>OrderService</td><td>Calls PaymentService directly</td><td><span class="warn">⚠ Caution</span> — tight context coupling; prefer domain events</td></tr>
+              <tr><td>Order aggregate</td><td>Calls PaymentService directly</td><td><span class="cross">✗ Never</span> — domain must not know infrastructure</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 8: INTERFACES -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="interfaces">
+    <div class="section-eyebrow">// Section 08</div>
+    <h2>Coding to Interfaces</h2>
+    <p class="section-intro">The value of coding to interfaces in a modern Spring Boot project is more nuanced than convention suggests. Blanket interface-per-service adds indirection without a meaningful return in most cases.</p>
+
+    <div class="callout">
+      <strong>Modern reality:</strong> Mockito mocks concrete classes. CGLIB proxies concrete classes for <code>@Transactional</code> and AOP. IntelliJ refactors concrete classes trivially. The mechanical safety net interfaces once provided is largely covered by tooling.
+    </div>
+
+    <h3>Where Interfaces Earn Their Place</h3>
+
+    <pre><code>// ✓ Repository port — genuine alternative implementations exist
+public interface OrderRepository {
+    Optional&lt;Order&gt; findById(Long id);
+    void save(Order order);
+}
+
+@Repository
+class JpaOrderRepository implements OrderRepository { ... }  // production
+
+class InMemoryOrderRepository implements OrderRepository { ... }  // tests
+
+
+// ✓ External service integration — you don't own the other side
+public interface PaymentGateway {
+    PaymentResult charge(Money amount, String reference);
+}
+
+class StripePaymentGateway implements PaymentGateway { ... }  // production
+class StubPaymentGateway  implements PaymentGateway { ... }   // tests / sandbox
+
+
+// ✓ Multiple real implementations exist or are planned
+public interface NotificationService { ... }
+class EmailNotificationService implements NotificationService { ... }
+class SmsNotificationService   implements NotificationService { ... }</code></pre>
+
+    <h3>Where Interfaces Are Noise</h3>
+    <pre><code>// ✗ One implementation, no swap planned, Mockito works without it
+public interface OrderService { ... }
+
+@Service
+public class OrderServiceImpl implements OrderService { ... }
+
+// Mockito mocks this without an interface
+@MockBean OrderService orderService;</code></pre>
+
+    <details>
+      <summary>Decision guide</summary>
+      <div class="details-body">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Scenario</th><th>Interface?</th><th>Reason</th></tr></thead>
+            <tbody>
+              <tr><td>Repository you might swap</td><td><span class="tick">✓ Yes</span></td><td>In-memory impl for tests; different DB for environments</td></tr>
+              <tr><td>External service (payment, email, SMS)</td><td><span class="tick">✓ Yes</span></td><td>Stub in tests; real adapter in production</td></tr>
+              <tr><td>Multiple real implementations</td><td><span class="tick">✓ Yes</span></td><td>Spring selects by qualifier or condition</td></tr>
+              <tr><td>Internal application service, one impl</td><td><span class="cross">✗ No</span></td><td>Mockito + CGLIB make this unnecessary</td></tr>
+              <tr><td>Service that is <code>@Transactional</code></td><td><span class="cross">✗ No</span></td><td>CGLIB proxies concrete classes; interface not required</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The interface belongs at the <strong>boundary</strong> — where something external, swappable, or independently testable lives. Between your own services, inside a single bounded context, it is usually indirection without benefit.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 9: TESTING -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="testing">
+    <div class="section-eyebrow">// Section 09</div>
+    <h2>Testing Strategy</h2>
+    <p class="section-intro">Each layer is independently testable. The test pyramid should reflect the architecture — fast unit tests at the bottom, slow integration tests at the top.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Test Type</th>
+            <th>What to Use</th>
+            <th>Spring Context?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Entity / Domain model</td>
+            <td>Unit</td>
+            <td>JUnit 5 only</td>
+            <td><span class="cross">No</span></td>
+          </tr>
+          <tr>
+            <td>Service</td>
+            <td>Unit</td>
+            <td>Mockito for repos</td>
+            <td><span class="cross">No</span></td>
+          </tr>
+          <tr>
+            <td>Repository</td>
+            <td>Integration</td>
+            <td>@DataJpaTest, Testcontainers</td>
+            <td><span class="warn">Slice</span></td>
+          </tr>
+          <tr>
+            <td>Controller</td>
+            <td>Integration</td>
+            <td>@WebMvcTest, MockMvc</td>
+            <td><span class="warn">Slice</span></td>
+          </tr>
+          <tr>
+            <td>Full stack</td>
+            <td>E2E</td>
+            <td>@SpringBootTest, Testcontainers</td>
+            <td><span class="tick">Full</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <details>
+      <summary>Testing an entity business rule without Spring</summary>
+      <div class="details-body">
+        <pre><code>// Pure unit test — no Spring, no DB, runs in milliseconds
+class OrderTest {
+
+    @Test
+    void cannot_ship_a_cancelled_order() {
+        Order order = Order.place("cust-1", List.of(...));
+        order.cancel();
+
+        assertThrows(IllegalStateException.class, order::ship);
+    }
+
+    @Test
+    void ship_transitions_status_to_shipped() {
+        Order order = Order.place("cust-1", List.of(...));
+        order.ship();
+
+        assertEquals(OrderStatus.SHIPPED, order.getStatus());
+    }
+}</code></pre>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 10: DDD MIGRATION -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="ddd-intro">
+    <div class="section-eyebrow">// Section 10</div>
+    <h2>Migrating Towards DDD</h2>
+    <p class="section-intro">DDD is a modelling discipline, not an architectural pattern. The three-tier structure with good discipline already provides the scaffolding. Migration is incremental — you don't need a big bang rewrite.</p>
+
+    <div class="callout">
+      <strong>Key insight:</strong> When you push business rules into the entity and stop using public setters for state transitions, you are already doing DDD. The only thing missing is the vocabulary.
+    </div>
+  </section>
+
+  <section id="step-1">
+    <div class="timeline">
+
+      <div class="step" data-step="1" id="step-1">
+        <h3>Push Rules Into the Entity</h3>
+        <p>The entity defends its own state. Replace public setters with intention-revealing methods. This is the single most impactful step.</p>
+        <pre><code>// Before
+order.setStatus("SHIPPED"); // called from anywhere, no validation
+
+// After
+public void ship() {
+    if (status != OrderStatus.PENDING) {
+        throw new IllegalStateException(
+            "Cannot ship order in status: " + status);
+    }
+    this.status = OrderStatus.SHIPPED;
+}</code></pre>
+      </div>
+
+      <div class="step" data-step="2" id="step-2">
+        <h3>Introduce Value Objects</h3>
+        <p>Replace primitives where the type carries meaning or needs validation. Java records make this near-zero cost.</p>
+        <pre><code>public record CustomerId(String value) {
+    public CustomerId {
+        if (value == null || value.isBlank())
+            throw new IllegalArgumentException("CustomerId cannot be blank");
+    }
+}
+
+public record Money(BigDecimal amount, Currency currency) {
+    public Money add(Money other) {
+        if (!this.currency.equals(other.currency))
+            throw new IllegalArgumentException("Currency mismatch");
+        return new Money(this.amount.add(other.amount), this.currency);
+    }
+}</code></pre>
+        <p>Validation moves into the type. Services stop repeating the same null checks and format guards.</p>
+      </div>
+
+      <div class="step" data-step="3" id="step-3">
+        <h3>Name the Aggregate Root</h3>
+        <p>Your entity that protects state is already an aggregate. Acknowledge it — and enforce that child entities (e.g. <code>OrderLine</code>) are only accessed through the root.</p>
+        <pre><code>@Entity
+public class Order { // Aggregate root
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    private List&lt;OrderLine&gt; lines = new ArrayList&lt;&gt;();
+
+    // Only the root adds/removes lines
+    public void addLine(OrderLine line) {
+        if (status != OrderStatus.PENDING)
+            throw new IllegalStateException("Order is not pending");
+        lines.add(line);
+    }
+}
+
+// OrderLine has no public repository of its own
+// Nothing calls orderLineRepository.save() directly</code></pre>
+      </div>
+
+      <div class="step" data-step="4" id="step-4">
+        <h3>Introduce Domain Events</h3>
+        <p>Aggregates signal meaningful state changes. Other parts of the system react without the aggregate knowing who is listening.</p>
+        <pre><code>// Domain event — a plain record
+public record OrderShipped(Long orderId, Instant occurredAt) {}
+
+// Aggregate raises the event
+public void ship() {
+    if (status != OrderStatus.PENDING)
+        throw new IllegalStateException("Cannot ship");
+    this.status = OrderStatus.SHIPPED;
+    registerEvent(new OrderShipped(this.id, Instant.now()));
+}
+
+// Service publishes after saving
+@Transactional
+public void shipOrder(Long id) {
+    Order order = orderRepository.findById(id).orElseThrow();
+    order.ship();
+    orderRepository.save(order);
+    order.getDomainEvents().forEach(eventPublisher::publishEvent);
+}</code></pre>
+      </div>
+
+      <div class="step" data-step="5" id="step-5">
+        <h3>Organise Into Bounded Contexts</h3>
+        <p>Reorganise packages around business capabilities. Each context is self-contained. Contexts communicate through domain events, not direct service calls.</p>
+        <pre><code>com.example.myapp
+├── controllers/                  ← delivery mechanism; orchestrates across contexts
+│   ├── OrderController.java
+│   └── CheckoutController.java
+│
+├── orders/                       ← bounded context
+│   ├── Order.java                (aggregate)
+│   ├── OrderLine.java            (child entity)
+│   ├── OrderStatus.java
+│   ├── CustomerId.java           (value object)
+│   ├── Money.java                (value object)
+│   ├── OrderShipped.java         (domain event)
+│   ├── OrderRepository.java
+│   └── OrderService.java
+│
+└── shipping/                     ← another bounded context
+    ├── Shipment.java
+    ├── ShipmentService.java
+    └── OrderShippedHandler.java  ← listens to event, no OrderService import</code></pre>
+        <div class="callout">
+          <strong>Rule:</strong> <code>shipping</code> never imports from <code>orders</code> except for event types in a shared <code>events</code> package. Contexts are decoupled by design.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 11: COMPARISON -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="comparison">
+    <div class="section-eyebrow">// Section 11</div>
+    <h2>Comparison: Three-Tier vs Clean Architecture</h2>
+    <p class="section-intro">Three-Tier architecture, properly structured, is an excellent and complete solution for the majority of applications. Clean Architecture is not a superior replacement — it solves a specific set of problems that most medium-sized applications do not have. The discipline described in this guide closes most of the apparent gaps between the two approaches.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Concern</th>
+            <th>Three-Tier (Disciplined)</th>
+            <th>Clean / Hexagonal Architecture</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Layer structure</td>
+            <td>Controller → Service → Repository</td>
+            <td>Presentation → Application → Domain → Infrastructure</td>
+          </tr>
+          <tr>
+            <td>Dependency direction</td>
+            <td><span class="tick">✓</span> Downward only (enforced by convention)</td>
+            <td><span class="tick">✓</span> Inward only (enforced by ArchUnit / package structure)</td>
+          </tr>
+          <tr>
+            <td>Repository abstraction</td>
+            <td>Spring Data interface is the abstraction</td>
+            <td>Domain-owned port interface; JPA is the adapter</td>
+          </tr>
+          <tr>
+            <td>Domain model</td>
+            <td>JPA entity can carry domain logic</td>
+            <td>Domain model is independent of JPA; mapped separately</td>
+          </tr>
+          <tr>
+            <td>Infrastructure swap</td>
+            <td><span class="tick">✓ Easy — with port interfaces (as recommended above)</span></td>
+            <td><span class="tick">✓ Easy — swap the adapter, port unchanged</span></td>
+          </tr>
+          <tr>
+            <td>Testability (domain)</td>
+            <td><span class="tick">✓ Entities unit-test cleanly; JPA annotations are passive metadata</span></td>
+            <td><span class="tick">✓ Pure domain objects, zero framework dependency</span></td>
+          </tr>
+          <tr>
+            <td>Multiple delivery mechanisms</td>
+            <td><span class="warn">⚠ Requires care — uncommon in practice for most applications</span></td>
+            <td><span class="tick">✓ Use cases are delivery-agnostic by design</span></td>
+          </tr>
+          <tr>
+            <td>Boilerplate</td>
+            <td><span class="tick">✓ Low — faster initial delivery, lower ongoing maintenance cost</span></td>
+            <td><span class="cross">✗ Higher — ports, adapters, mappers, use case classes, separate entities; cost compounds with scale</span></td>
+          </tr>
+          <tr>
+            <td>Team onboarding</td>
+            <td><span class="tick">✓ Familiar to most Spring developers</span></td>
+            <td><span class="warn">⚠ Steeper initial learning curve</span></td>
+          </tr>
+          <tr>
+            <td>CQRS support</td>
+            <td><span class="tick">✓ Natural fit in the service layer</span></td>
+            <td><span class="tick">✓ Explicit use case classes per command/query</span></td>
+          </tr>
+          <tr>
+            <td>DDD compatibility</td>
+            <td><span class="tick">✓ Yes — domain logic in entity, value objects, events</span></td>
+            <td><span class="tick">✓ Yes — domain layer is purpose-built for it</span></td>
+          </tr>
+          <tr>
+            <td>ArchUnit enforcement</td>
+            <td><span class="tick">✓ Downward-dependency rule is straightforward to enforce</span></td>
+            <td><span class="tick">✓ Rules map directly to explicit layer packages</span></td>
+          </tr>
+          <tr>
+            <td>Best for</td>
+            <td><strong>Most teams and most applications.</strong> Correct default choice up to large scale.</td>
+            <td>Complex domains with JPA-hostile models; large teams needing enforced hard boundaries; applications with multiple delivery mechanisms.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <strong>The default choice should be Three-Tier.</strong> Clean Architecture is not a better version of the same thing — it is a different trade-off suited to a narrower set of problems. For most medium-sized applications, the disciplined Three-Tier structure described in this guide — with port interfaces at persistence and external service boundaries — is a complete, maintainable, and production-proven architectural end state. Choosing Clean Architecture for an application that does not need it adds cost without benefit.
+    </div>
+
+    <details>
+      <summary>The key structural difference illustrated</summary>
+      <div class="details-body">
+        <h3>Three-Tier</h3>
+        <div class="diagram">
+          <div class="layer presentation"><span class="layer-label">Controller</span><span class="layer-note">calls</span></div>
+          <div class="arrow">↓</div>
+          <div class="layer application"><span class="layer-label">Service</span><span class="layer-note">calls</span></div>
+          <div class="arrow">↓</div>
+          <div class="layer infra"><span class="layer-label">Spring Data Repository</span><span class="layer-note">JPA directly wired</span></div>
+        </div>
+        <h3>Clean / Hexagonal</h3>
+        <div class="diagram">
+          <div class="layer presentation"><span class="layer-label">Controller (Adapter)</span><span class="layer-note">calls</span></div>
+          <div class="arrow">↓</div>
+          <div class="layer application"><span class="layer-label">Use Case / Command Handler</span><span class="layer-note">depends on</span></div>
+          <div class="arrow">↓</div>
+          <div class="layer domain"><span class="layer-label">Domain (Port interface)</span><span class="layer-note">implemented by</span></div>
+          <div class="arrow">↓</div>
+          <div class="layer infra"><span class="layer-label">JPA Adapter (implements port)</span><span class="layer-note">infrastructure detail</span></div>
+        </div>
+        <p>The domain layer in Clean Architecture has no knowledge of JPA. The port is an interface defined in the domain; the JPA implementation lives in infrastructure and depends inward on the domain — not the other way round.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 12: PORTS WITHOUT FULL CLEAN ARCH -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="ports-pragmatic">
+    <div class="section-eyebrow">// Section 12</div>
+    <h2>Ports Without Full Clean Architecture</h2>
+    <p class="section-intro">Extracting a repository port interface gives you the most valuable part of hexagonal architecture without the overhead of the full pattern. For most medium-sized applications, this is a stable end state — not a waypoint to something more complex.</p>
+
+    <div class="callout">
+      <strong>Key insight:</strong> When the service has no compile-time dependency on JPA and persistence is swappable, you have already gained the concrete day-to-day benefit of hexagonal architecture. The rest solves problems most medium-sized applications do not have.
+    </div>
+
+    <h3>The Pragmatic Structure</h3>
+
+    <pre><code>com.example.myapp
+├── controllers/
+│
+├── orders/
+│   ├── Order.java                ← JPA entity carrying domain logic
+│   ├── OrderRepository.java      ← port interface, domain-owned
+│   ├── OrderService.java         ← depends on the port, not JPA
+│   └── infrastructure/
+│       └── JpaOrderRepository.java  ← implements the port, hidden here
+│
+└── payments/
+    ├── Payment.java
+    ├── PaymentGateway.java       ← port for external service
+    ├── PaymentService.java
+    └── infrastructure/
+        └── StripePaymentGateway.java</code></pre>
+
+    <p>The service depends on <code>OrderRepository</code> the interface. It has no knowledge of JPA, Hibernate, or the database. The infrastructure subfolder is an implementation detail — nothing outside it needs to change if the implementation changes.</p>
+
+    <pre><code>// Service depends only on the port
+@Service
+public class OrderService {
+    private final OrderRepository orderRepository; // interface, not JPA
+
+    @Transactional
+    public void shipOrder(Long id) {
+        Order order = orderRepository.findById(id).orElseThrow();
+        order.ship();
+        orderRepository.save(order);
+    }
+}
+
+// Port — owned by the domain, knows nothing of JPA
+public interface OrderRepository {
+    Optional&lt;Order&gt; findById(Long id);
+    void save(Order order);
+}
+
+// Adapter — hidden in infrastructure, the only JPA-aware class
+@Repository
+class JpaOrderRepository implements OrderRepository {
+    private final OrderJpaRepository jpa; // Spring Data
+
+    @Override
+    public Optional&lt;Order&gt; findById(Long id) {
+        return jpa.findById(id);
+    }
+
+    @Override
+    public void save(Order order) {
+        jpa.save(order);
+    }
+}</code></pre>
+
+    <h3>What This Gives You</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th>Without Port</th>
+            <th>With Port (No Full Clean Arch)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Swap persistence implementation</td>
+            <td><span class="cross">✗ Touches service</span></td>
+            <td><span class="tick">✓ New adapter only</span></td>
+          </tr>
+          <tr>
+            <td>In-memory impl for tests</td>
+            <td><span class="cross">✗ Requires Mockito or H2</span></td>
+            <td><span class="tick">✓ Trivial to write</span></td>
+          </tr>
+          <tr>
+            <td>Service unit testable without Spring</td>
+            <td><span class="warn">⚠ Possible but awkward</span></td>
+            <td><span class="tick">✓ Pass any implementation</span></td>
+          </tr>
+          <tr>
+            <td>JPA annotations on domain entity</td>
+            <td>Yes</td>
+            <td>Yes — accepted pragmatic trade-off</td>
+          </tr>
+          <tr>
+            <td>Separate domain + JPA entity classes</td>
+            <td>No</td>
+            <td>No — not needed unless domain model fights JPA</td>
+          </tr>
+          <tr>
+            <td>Explicit use case classes</td>
+            <td>No</td>
+            <td>No — service methods are sufficient</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The Cost-Benefit of Going Further</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>Benefit</th>
+            <th>Cost</th>
+            <th>Worth it?</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Repository port interface</td>
+            <td>Swappable persistence, testable without DB</td>
+            <td>One extra interface per repository</td>
+            <td><span class="tick">✓ Almost always</span></td>
+          </tr>
+          <tr>
+            <td>External service port (PaymentGateway etc.)</td>
+            <td>Stubbable, swappable provider</td>
+            <td>One extra interface per integration</td>
+            <td><span class="tick">✓ Almost always</span></td>
+          </tr>
+          <tr>
+            <td>Separate domain + JPA entities</td>
+            <td>Zero framework coupling in domain</td>
+            <td>Two class hierarchies; mappers between them</td>
+            <td><span class="warn">⚠ Only if JPA fights the model</span></td>
+          </tr>
+          <tr>
+            <td>Explicit use case classes per operation</td>
+            <td>Single responsibility per use case</td>
+            <td>Many more classes; navigation overhead</td>
+            <td><span class="warn">⚠ Only if services become God classes</span></td>
+          </tr>
+          <tr>
+            <td>Full adapter packages per concern</td>
+            <td>Explicit hexagonal boundary</td>
+            <td>Significant boilerplate; onboarding cost</td>
+            <td><span class="cross">✗ Rarely justified at medium scale</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <details>
+      <summary>When does full clean architecture justify itself?</summary>
+      <div class="details-body">
+        <p>The crossover point is usually one or more of the following conditions being true simultaneously:</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Condition</th><th>Why It Changes the Calculation</th></tr></thead>
+            <tbody>
+              <tr><td>Domain model fights JPA annotations</td><td>Complex inheritance, non-standard mapping, or persistence strategies that distort the domain — separate entities become necessary rather than optional</td></tr>
+              <tr><td>Multiple persistence backends in one application</td><td>Ports become the only clean abstraction over heterogeneous storage</td></tr>
+              <tr><td>Same use case invoked from REST, messaging, and scheduled jobs</td><td>A delivery-agnostic use case class pays for itself when there are three callers</td></tr>
+              <tr><td>Team large enough that convention breaks down</td><td>Enforced package boundaries via ArchUnit prevent coupling that discipline alone cannot</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>For most medium-sized applications none of these apply. The disciplined three-tier structure with ports at the persistence and external service boundaries is a maintainable end state in its own right.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION 13: WHEN TO EVOLVE -->
+  <!-- ══════════════════════════════════════ -->
+  <section id="when">
+    <div class="section-eyebrow">// Section 13</div>
+    <h2>When to Evolve Beyond Three-Tier</h2>
+    <p class="section-intro">Adding architectural complexity before the problem demands it is a cost with no benefit. These are signals that the disciplined three-tier structure is approaching its limits.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Signal</th>
+            <th>What It Suggests</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Services are God classes</td>
+            <td>Use case slicing into command/query handlers; consider bounded contexts</td>
+          </tr>
+          <tr>
+            <td>Need to swap persistence (e.g. Postgres → Mongo)</td>
+            <td>Extract domain-owned repository port; move JPA to adapter</td>
+          </tr>
+          <tr>
+            <td>Same logic served over REST, messaging, and scheduled jobs</td>
+            <td>Application use case layer independent of delivery mechanism</td>
+          </tr>
+          <tr>
+            <td>Large team stepping on each other</td>
+            <td>Explicit bounded contexts with enforced ArchUnit boundaries</td>
+          </tr>
+          <tr>
+            <td>Domain model needs to be tested without JPA</td>
+            <td>Separate domain objects from JPA entities; map between them</td>
+          </tr>
+          <tr>
+            <td>Business rules spread across services</td>
+            <td>Rich aggregates; domain events; push logic into the model</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <strong>Guiding principle:</strong> The disciplined Three-Tier structure described in this guide — distinct types, logic in the model, CQRS split, port interfaces at boundaries — is a legitimate architectural end state for most applications, not a waypoint to something more complex. If you do eventually need to go further, the seams already exist and migration is straightforward. If you don't apply this discipline, no amount of architectural ambition will rescue a codebase where entities leak everywhere and services do everything.
+    </div>
+  </section>
+
+  <footer>
+    <p>Spring Boot Architecture Guide &mdash; Three-Tier, DDD Migration, Clean Architecture Comparison</p>
+  </footer>
+
+</main>
+</body>
+</html>
