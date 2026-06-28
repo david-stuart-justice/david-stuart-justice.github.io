@@ -290,14 +290,14 @@
     </div>
 
 <pre><code>@Transactional
-public void handle(ApproveApplicationCommand cmd) {
-    EventStream stream = eventStore.load(cmd.applicationId());
-    ApplicationAggregate aggregate = ApplicationAggregate.rehydrate(stream.events());
+public void handle(ApproveOrderCommand cmd) {
+    EventStream stream = eventStore.load(cmd.orderId());
+    OrderAggregate aggregate = OrderAggregate.rehydrate(stream.events());
 
-    List&lt;DomainEvent&gt; newEvents = aggregate.approve(cmd.approverId(), clock.instant());
+    List&lt;DomainEvent&gt; newEvents = aggregate.approve(cmd.processedBy(), clock.instant());
 
     eventStore.append(
-        cmd.applicationId(),
+        cmd.orderId(),
         stream.expectedVersion(),
         newEvents
     );
@@ -534,7 +534,7 @@ CREATE INDEX idx_outbox_pending ON outbox (published, created_at);
     <h2>Migration Strategy from CRUD</h2>
 
     <div class="flow three">
-      <div class="step"><strong>Step 1</strong>Capture domain events from existing writes (still CRUD source of truth).</div>
+      <div class="step"><strong>Step 1</strong>Capture domain events from writes (still CRUD source of truth).</div>
       <div class="step"><strong>Step 2</strong>Introduce outbox and projection handlers for new read models.</div>
       <div class="step"><strong>Step 3</strong>Move selected aggregates to event-sourced writes with version checks.</div>
     </div>

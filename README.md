@@ -8,15 +8,17 @@ A GitHub Pages site for personal research across software architecture and philo
 /
 ├── index.html                 # Root landing page (research discovery hub)
 ├── README.md                  # This file
-├── event-sourcing/            # Software architecture research
+├── event-sourcing/            # Event sourcing architecture research
 │   ├── index.html             # Topic landing page
 │   ├── styles.css             # Topic-specific styles
 │   ├── axon-framework-research.html
 │   ├── manual-event-sourcing-research.html
-│   └── comparison.html
-└── justice-research/          # Philosophy & ethics research
-    ├── index.html             # Topic landing page (placeholder)
-    └── styles.css             # Topic-specific styles
+│   ├── comparison.html
+│   ├── event-sourcing-architecture-guide.html
+│   └── greenfield-spring-boot-event-sourcing.html
+└── spring-boot-three-tier/    # Spring Boot architecture research
+    ├── index.html             # Topic landing page
+    └── spring-architecture-guide.html
 ```
 
 ## Research Topics
@@ -25,12 +27,13 @@ A GitHub Pages site for personal research across software architecture and philo
 Exploratory research into implementing event sourcing in a Spring Boot application. Compares framework-driven (Axon) vs. manual implementation approaches, with focus on CQRS patterns, concurrency control, and production trade-offs.
 
 - **Landing page:** `./event-sourcing/index.html`
-- **Key pages:** Axon Framework analysis, manual implementation guide, decision matrix
+- **Key pages:** Architecture guide, Axon Framework analysis, manual implementation guide, greenfield implementation, comparison matrix
 
-### Justice Philosophy (`justice-research/`)
-Research into philosophical foundations of justice, the ethics of warfare, and medieval just war theory applied to contemporary questions. Currently a placeholder; content in development.
+### Spring Boot Three-Tier Architecture (`spring-boot-three-tier/`)
+Research into traditional three-tier architecture patterns for Spring Boot applications, exploring layered design principles, dependency management, and best practices for building maintainable enterprise applications.
 
-- **Landing page:** `./justice-research/index.html`
+- **Landing page:** `./spring-boot-three-tier/index.html`
+- **Key pages:** Spring architecture guide
 
 ## Adding a New Research Topic
 

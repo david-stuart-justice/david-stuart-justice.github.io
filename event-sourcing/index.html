@@ -11,7 +11,7 @@
   <section class="hero">
     <h1>Event Sourcing Research</h1>
     <p class="lead">
-      Exploratory research into implementing event sourcing in a Spring Boot application. Two paths are examined: using Axon Framework for structure and consistency, or building from scratch with manual control and minimal dependencies. This is personal research, not a team decision.
+      Exploratory research into implementing event sourcing in a Spring Boot service. Two paths are examined: using Axon Framework for structure and consistency, or building from scratch with manual control and minimal dependencies. This is personal research for learning purposes.
     </p>
   </section>
 
@@ -99,9 +99,9 @@
       <div class="sub-card">
         <h3>Scale & Technical Baseline</h3>
         <ul>
-          <li><strong>Volume:</strong> ~100,000 applications processed per year.</li>
-          <li><strong>Infrastructure:</strong> AWS EKS (Kubernetes), Kinesis, PostgreSQL RDS.</li>
-          <li><strong>Pipeline:</strong> GitHub Actions for CI/CD, Helm for deployments.</li>
+          <li><strong>Volume:</strong> Moderate transaction volume.</li>
+          <li><strong>Infrastructure:</strong> Container orchestration, message broker, PostgreSQL.</li>
+          <li><strong>Pipeline:</strong> CI/CD automation, container deployments.</li>
           <li><strong>Stack:</strong> Java 25, Spring Boot 4, Flyway migrations.</li>
         </ul>
       </div>
@@ -109,8 +109,8 @@
         <h3>Core Objectives</h3>
         <ul>
           <li><strong>Auditability:</strong> Full history of state changes is mandatory.</li>
-          <li><strong>Decoupling:</strong> Downstream services (e.g., Reporting) consumed via events.</li>
-          <li><strong>Reliability:</strong> At-least-once delivery to Kinesis.</li>
+          <li><strong>Decoupling:</strong> Downstream services consume via events.</li>
+          <li><strong>Reliability:</strong> At-least-once delivery to message broker.</li>
           <li><strong>Maintainability:</strong> Code must be readable by generalist engineers.</li>
         </ul>
       </div>

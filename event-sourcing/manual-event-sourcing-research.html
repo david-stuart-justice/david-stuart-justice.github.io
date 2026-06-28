@@ -13,11 +13,11 @@
     <div class="eyebrow">Personal Research &amp; Exploration</div>
     <h1>Manual Event Sourcing with Spring Boot</h1>
     <p class="lead">
-      Building event sourcing from scratch using Spring Boot, JPA, custom event tables, the outbox pattern, and AWS Kinesis. This document covers the approach, trade-offs, and how it compares to using a framework like Axon. It is exploratory research, not a team decision or formal recommendation.
+      Building event sourcing from scratch using Spring Boot, JPA, custom event tables, the outbox pattern, and message streaming. This document covers the approach, trade-offs, and how it compares to using a framework like Axon. It is exploratory research for learning purposes.
     </p>
     <div class="pill-row">
       <span class="pill">Status: Exploration</span>
-      <span class="pill">Pattern: Event Sourcing + Outbox + Kinesis</span>
+      <span class="pill">Pattern: Event Sourcing + Outbox + Streaming</span>
       <span class="pill">Stack: Spring Boot 4 · Java 25 · PostgreSQL</span>
       <span class="pill">Build: Gradle</span>
       <span class="pill">Date: June 2026</span>
@@ -35,7 +35,7 @@
       <li><a href="#command-handling" class="toc-link">Command Handling</a></li>
       <li><a href="#event-replay" class="toc-link">Event Replay &amp; Snapshots</a></li>
       <li><a href="#read-models" class="toc-link">Read-side Projections</a></li>
-      <li><a href="#kinesis-publish" class="toc-link">Kinesis Publisher</a></li>
+      <li><a href="#kinesis-publish" class="toc-link">Event Stream Publisher</a></li>
       <li><a href="#tracking-offsets" class="toc-link">Tracking Offsets &amp; Idempotency</a></li>
       <li><a href="#vs-axon" class="toc-link">vs Axon: Core Differences</a></li>
       <li><a href="#trade-offs" class="toc-link">Trade-offs Summary</a></li>
@@ -49,18 +49,18 @@
     <div class="kicker">Context</div>
     <h2>What this document covers</h2>
     <p>Event sourcing without a framework means you own the event store schema, replay logic, outbox management, and read-side projection tracking. This approach gives maximum control and fine-grained optimization for your specific domain. It also means you build and maintain infrastructure that frameworks like Axon provide out of the box.</p>
-    <p>This document assumes a greenfield service similar to the existing Axon research: ~100,000 applications per year, Spring Boot backend, PostgreSQL storage, and AWS Kinesis for downstream fan-out to independent consumers.</p>
-    <div class="footer-note">This is exploratory research for comparison purposes. A real implementation would require stakeholder validation, architectural review, and careful testing of the replay and consistency guarantees described here.</div>
+    <p>This document assumes a greenfield service with moderate transaction volume, Spring Boot backend, PostgreSQL storage, and message broker for downstream fan-out to independent consumers.</p>
+    <div class="footer-note">This is exploratory research for learning and comparison purposes.</div>
   </section>
 
   <!-- ARCHITECTURE -->
   <section class="section card featured" id="architecture">
     <div class="kicker">High Level</div>
     <h2>Architecture overview</h2>
-    <p>Commands update the event log and trigger the outbox. Outbox rows are published to Kinesis asynchronously. Read-side consumers subscribe to Kinesis and build projections independently. Unlike Axon, there is no automatic aggregate loading or optimistic concurrency checking — you implement these patterns for your domain.</p>
+    <p>Commands update the event log and trigger the outbox. Outbox rows are published to the message broker asynchronously. Read-side consumers subscribe to the event stream and build projections independently. Unlike Axon, there is no automatic aggregate loading or optimistic concurrency checking — you implement these patterns for your domain.</p>
 
     <div class="diagram">
-      <svg viewBox="0 0 1000 160" role="img" aria-label="Command to event store to outbox to Kinesis flow">
+      <svg viewBox="0 0 1000 160" role="img" aria-label="Command to event store to outbox to message broker flow">
         <defs>
           <marker id="a1" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
             <path d="M0,0 L10,3 L0,6 z" fill="#1d4ed8"/>
@@ -78,7 +78,7 @@
         <text x="290" y="96"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="11" fill="#4a6080">+ Outbox rows</text>
         <text x="510" y="77"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0f1f33">Outbox Publisher</text>
         <text x="510" y="96"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="11" fill="#4a6080">async relay</text>
-        <text x="720" y="77"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0f1f33">Kinesis Stream</text>
+        <text x="720" y="77"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0f1f33">Event Stream</text>
         <text x="720" y="96"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="11" fill="#4a6080">event fan-out</text>
         <text x="915" y="77"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#166534">Consumers</text>
         <text x="915" y="96"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="11" fill="#166534">build projections</text>
@@ -105,7 +105,7 @@
         <h3>Asynchronous publisher</h3>
         <ul>
           <li>Polls <code>outbox</code> for unpublished rows</li>
-          <li>Publishes to Kinesis</li>
+          <li>Publishes to message broker</li>
           <li>Marks row as published</li>
           <li>Retries on failure</li>
           <li>Dead letters poison messages</li>
@@ -114,7 +114,7 @@
       <div class="sub-card">
         <h3>Read side</h3>
         <ul>
-          <li>Consumers receive Kinesis records</li>
+          <li>Consumers receive stream records</li>
           <li>Deserialize to domain events</li>
           <li>Track sequence offsets</li>
           <li>Build read-model projections</li>
@@ -146,12 +146,12 @@
         <tr>
           <td><code>aggregate_type</code></td>
           <td>VARCHAR(100) NOT NULL</td>
-          <td>Fully-qualified class name (e.g. <code>com.example.ApplicationAggregate</code>). Allows filtering by aggregate type.</td>
+          <td>Fully-qualified class name (e.g. <code>com.example.OrderAggregate</code>). Allows filtering by aggregate type.</td>
         </tr>
         <tr>
           <td><code>event_type</code></td>
           <td>VARCHAR(100) NOT NULL</td>
-          <td>Fully-qualified class name of the event (e.g. <code>com.example.ApplicationSubmittedEvent</code>).</td>
+          <td>Fully-qualified class name of the event (e.g. <code>com.example.OrderPlacedEvent</code>).</td>
         </tr>
         <tr>
           <td><code>payload</code></td>
@@ -206,10 +206,10 @@
   <section class="section card featured" id="outbox">
     <div class="kicker">Reliability</div>
     <h2>Outbox pattern &amp; Distributed Locking</h2>
-    <p>The outbox table sits in the same database as the event store. Within a single transaction, you write the event and the outbox row. PostgreSQL's ACID guarantees ensure both succeed or both fail — no events are lost. An external relay process publishes outbox rows to Kinesis asynchronously.</p>
+    <p>The outbox table sits in the same database as the event store. Within a single transaction, you write the event and the outbox row. PostgreSQL's ACID guarantees ensure both succeed or both fail — no events are lost. An external relay process publishes outbox rows to the message broker asynchronously.</p>
     
     <div class="warn-note">
-      <strong>Clustered Deployment (EKS):</strong> When running multiple replicas of the publisher, you must ensure only one instance processes a specific set of outbox rows at a time to prevent duplicate Kinesis records. Use a distributed lock (e.g., <strong>ShedLock</strong>) on the <code>@Scheduled</code> task.
+      <strong>Clustered Deployment:</strong> When running multiple replicas of the publisher, you must ensure only one instance processes a specific set of outbox rows at a time to prevent duplicate broker records. Use a distributed lock (e.g., <strong>ShedLock</strong>) on the <code>@Scheduled</code> task.
     </div>
 
     <div class="flow two">
@@ -227,7 +227,7 @@
       </div>
       <div class="step">
         <strong>4. Relay publishes</strong>
-        Separate async process polls <code>outbox</code>, publishes to Kinesis, marks as published.
+        Separate async process polls <code>outbox</code>, publishes to message broker, marks as published.
       </div>
     </div>
 
@@ -271,28 +271,28 @@ CREATE TABLE shedlock (
 
     <h3 style="margin-top: 20px;">Service method</h3>
 <pre><code>@Service
-public class ApplicationService {
+public class OrderService {
 
     private final EntityManager em;
-    private final KinesisProperties kinesisConfig;
+    private final BrokerProperties brokerConfig;
 
     @Transactional
-    public void submitApplication(String applicantId) {
+    public void placeOrder(String customerId) {
         // Generate IDs
-        String applicationId = UUID.randomUUID().toString();
+        String orderId = UUID.randomUUID().toString();
         String eventId = UUID.randomUUID().toString();
 
         // Create event payload
-        ApplicationSubmittedEvent event = new ApplicationSubmittedEvent(
-            applicationId, applicantId, Instant.now()
+        OrderPlacedEvent event = new OrderPlacedEvent(
+            orderId, customerId, Instant.now()
         );
 
         // Insert into event store
         em.createNativeQuery(
             "INSERT INTO event_store (aggregate_id, aggregate_type, event_type, " +
             "payload, sequence_number, event_id, metadata) " +
-            "VALUES (?, 'com.example.ApplicationAggregate', ?, ?, 0, ?, ?)"
-        ).setParameter(1, applicationId)
+            "VALUES (?, 'com.example.OrderAggregate', ?, ?, 0, ?, ?)")
+         .setParameter(1, orderId)
          .setParameter(2, event.getClass().getName())
          .setParameter(3, objectMapper.writeValueAsString(event))
          .setParameter(4, eventId)
@@ -307,7 +307,7 @@ public class ApplicationService {
             "INSERT INTO outbox (event_id, aggregate_id, event_type, payload) " +
             "VALUES (?, ?, ?, ?)"
         ).setParameter(1, eventId)
-         .setParameter(2, applicationId)
+         .setParameter(2, orderId)
          .setParameter(3, event.getClass().getName())
          .setParameter(4, objectMapper.writeValueAsString(event))
          .executeUpdate();
@@ -328,7 +328,7 @@ public class ApplicationService {
     <p>Unlike Axon's aggregate pattern, you load events manually, apply business logic, and write the result. There is no automatic aggregate state reconstruction or optimistic concurrency handling — you implement both in the service layer.</p>
 
     <h3>Load aggregate from events</h3>
-<pre><code>public ApplicationAggregate loadAggregate(String applicationId) {
+<pre><code>public OrderAggregate loadAggregate(String orderId) {
     // Fetch all events for this aggregate in order
     List&lt;DomainEvent&gt; events = em.createNativeQuery(
         "SELECT payload, event_type FROM event_store " +
@@ -346,49 +346,49 @@ public class ApplicationService {
      .collect(Collectors.toList());
 
     // Reconstruct aggregate state by replaying events
-    ApplicationAggregate agg = new ApplicationAggregate(applicationId);
+    OrderAggregate agg = new OrderAggregate(orderId);
     events.forEach(agg::apply);
     return agg;
 }
 
 // Aggregate class with apply() method
-public class ApplicationAggregate {
-    private String applicationId;
-    private ApplicationStatus status;
+public class OrderAggregate {
+    private String orderId;
+    private OrderStatus status;
 
     public void apply(DomainEvent event) {
-        if (event instanceof ApplicationSubmittedEvent e) {
-            this.status = ApplicationStatus.SUBMITTED;
-        } else if (event instanceof ApplicationApprovedEvent e) {
-            this.status = ApplicationStatus.APPROVED;
+        if (event instanceof OrderPlacedEvent e) {
+            this.status = OrderStatus.PLACED;
+        } else if (event instanceof OrderApprovedEvent e) {
+            this.status = OrderStatus.APPROVED;
         }
     }
 
-    public void submitApplication(String applicantId) {
+    public void placeOrder(String customerId) {
         if (status != null) {
-            throw new IllegalStateException("Application already exists");
+            throw new IllegalStateException("Order already exists");
         }
-        apply(new ApplicationSubmittedEvent(applicationId, applicantId, Instant.now()));
+        apply(new OrderPlacedEvent(orderId, customerId, Instant.now()));
     }
 
-    public void approve(String approverId) {
-        if (status != ApplicationStatus.SUBMITTED) {
+    public void approve(String processedBy) {
+        if (status != OrderStatus.PLACED) {
             throw new IllegalStateException("Cannot approve: status is " + status);
         }
-        apply(new ApplicationApprovedEvent(applicationId, approverId, Instant.now()));
+        apply(new OrderApprovedEvent(orderId, processedBy, Instant.now()));
     }
 }</code></pre>
 
     <h3 style="margin-top: 24px;">Handle command with optimistic concurrency</h3>
 <pre><code>@Transactional
-public void approveApplication(String applicationId, String approverId) {
+public void approveOrder(String orderId, String processedBy) {
     // Load aggregate with current sequence number
-    ApplicationAggregate agg = loadAggregateWithSequence(applicationId);
+    OrderAggregate agg = loadAggregateWithSequence(orderId);
     long nextSequence = agg.getSequenceNumber() + 1;
 
     // Apply command — this may throw if business rules are violated
-    agg.approve(approverId);
-    ApplicationApprovedEvent event = agg.getUncommittedEvents().get(0);
+    agg.approve(processedBy);
+    OrderApprovedEvent event = agg.getUncommittedEvents().get(0);
 
     // Attempt to write the new event
     try {
@@ -396,8 +396,8 @@ public void approveApplication(String applicationId, String approverId) {
             "INSERT INTO event_store " +
             "(aggregate_id, aggregate_type, event_type, payload, sequence_number, event_id) " +
             "VALUES (?, ?, ?, ?, ?, ?)"
-        ).setParameter(1, applicationId)
-         .setParameter(2, "com.example.ApplicationAggregate")
+        ).setParameter(1, orderId)
+         .setParameter(2, "com.example.OrderAggregate"))
          .setParameter(3, event.getClass().getName())
          .setParameter(4, objectMapper.writeValueAsString(event))
          .setParameter(5, nextSequence)
@@ -406,15 +406,15 @@ public void approveApplication(String applicationId, String approverId) {
     } catch (DataIntegrityViolationException e) {
         // Unique constraint on (aggregate_id, sequence_number) was violated
         // Another command executed between our load and our write
-        throw new OptimisticLockingException(applicationId);
+        throw new OptimisticLockingException(orderId);
     }
 
     // Insert outbox row — same transaction, same guarantees
     em.createNativeQuery(
         "INSERT INTO outbox (event_id, aggregate_id, event_type, payload) " +
-        "VALUES (?, ?, ?, ?)"
-    ).setParameter(1, event.getEventId())
-     .setParameter(2, applicationId)
+        "VALUES (?, ?, ?, ?)")
+    .setParameter(1, event.getEventId())
+     .setParameter(2, orderId)
      .setParameter(3, event.getClass().getName())
      .setParameter(4, objectMapper.writeValueAsString(event))
      .executeUpdate();
@@ -456,7 +456,7 @@ public void approveApplication(String applicationId, String approverId) {
 );</code></pre>
 
     <h3 style="margin-top: 20px;">Load with snapshot optimization</h3>
-<pre><code>public ApplicationAggregate loadAggregateOptimized(String applicationId) {
+<pre><code>public OrderAggregate loadAggregateOptimized(String orderId) {
     // Check for snapshot
     var snapshot = em.createNativeQuery(
         "SELECT state, sequence_number FROM aggregate_snapshot " +
@@ -467,7 +467,7 @@ public void approveApplication(String applicationId, String approverId) {
      .stream()
      .findFirst();
 
-    ApplicationAggregate agg;
+    OrderAggregate agg;
     long startSeq = 0;
 
     if (snapshot.isPresent()) {
@@ -503,13 +503,13 @@ public void approveApplication(String applicationId, String approverId) {
   <section class="section card" id="read-models">
     <div class="kicker">Read Side</div>
     <h2>Read-side projections</h2>
-    <p>Consumers subscribe to the Kinesis stream and build their own projections. Each consumer maintains an offset or sequence number to track progress and handle restarts. A dedicated read model table holds the current state without needing to replay events on every query.</p>
+    <p>Consumers subscribe to the event stream and build their own projections. Each consumer maintains an offset or sequence number to track progress and handle restarts. A dedicated read model table holds the current state without needing to replay events on every query.</p>
 
     <h3>Projection schema</h3>
-<pre><code>CREATE TABLE application_status_view (
-    application_id    VARCHAR(255) PRIMARY KEY,
+<pre><code>CREATE TABLE order_status_view (
+    order_id          VARCHAR(255) PRIMARY KEY,
     status            VARCHAR(50) NOT NULL,
-    applicant_id      VARCHAR(255),
+    customer_id       VARCHAR(255),
     assigned_to       VARCHAR(255),
     updated_at        TIMESTAMP DEFAULT NOW()
 );
@@ -517,37 +517,37 @@ public void approveApplication(String applicationId, String approverId) {
 CREATE TABLE consumer_offsets (
     consumer_name     VARCHAR(100) PRIMARY KEY,
     stream_name       VARCHAR(100) NOT NULL,
-    shard_id          VARCHAR(100),
+    partition_id      VARCHAR(100),
     sequence_number   BIGINT,
     checkpoint_time   TIMESTAMP DEFAULT NOW()
 );</code></pre>
 
-    <h3 style="margin-top: 20px;">Kinesis consumer implementation</h3>
+    <h3 style="margin-top: 20px;">Stream consumer implementation</h3>
 <pre><code>@Component
 public class StatusProjectionConsumer {
 
-    private final KinesisAsyncClient kinesis;
-    private final ApplicationStatusRepository statusRepo;
+    private final MessageBrokerClient client;
+    private final OrderStatusRepository statusRepo;
     private final JdbcTemplate jdbc;
-    private final String shardId;
+    private final String partitionId;
 
     @PostConstruct
     public void subscribe() {
-        // Start listening to Kinesis shard
+        // Start listening to event stream partition
         // On each record:
         // 1. Deserialize event
         // 2. Update read model
         // 3. Update offset in consumer_offsets
     }
 
-    public void handleEvent(KinesisClientEvent event) throws JsonProcessingException {
-        ApplicationSubmittedEvent e = objectMapper.readValue(
-            event.getPayload(), ApplicationSubmittedEvent.class
+    public void handleEvent(StreamEvent event) throws JsonProcessingException {
+        OrderPlacedEvent e = objectMapper.readValue(
+            event.getPayload(), OrderPlacedEvent.class
         );
 
         // Update read model
-        statusRepo.save(new ApplicationStatusView(
-            e.getApplicationId(),
+        statusRepo.save(new OrderStatusView(
+            e.getOrderId(),
             "SUBMITTED",
             e.getApplicantId(),
             null,
@@ -559,9 +559,9 @@ spring.flyway.enabled=true
 amazon.kinesis.stream-name=application-events
 amazon.kinesis.region=eu-west-2</code></pre>
 
-    <h3>build.gradle — AWS SDK &amp; Locking</h3>
+    <h3>build.gradle — Message Broker SDK &amp; Locking</h3>
 <pre><code>dependencies {
-    implementation 'software.amazon.awssdk:kinesis:2.25.0'
+    // Message broker client library
     implementation 'net.javacrumbs.shedlock:shedlock-spring:5.13.0'
     implementation 'net.javacrumbs.shedlock:shedlock-provider-jdbc-template:5.13
         jdbc.update(
@@ -621,7 +621,7 @@ public class OutboxPublisher {
 }</code></pre>
 
     <div class="warn-note">
-      <strong>At-least-once delivery.</strong> Events are published to Kinesis at least once. The same event may be delivered multiple times if Kinesis reshards or the publisher retries. Downstream consumers must be idempotent — use <code>event_id</code> as the idempotency key to detect and skip duplicates.
+      <strong>At-least-once delivery.</strong> Events are published to the message broker at least once. The same event may be delivered multiple times if the broker reshards or the publisher retries. Downstream consumers must be idempotent \u2014 use <code>event_id</code> as the idempotency key to detect and skip duplicates.
     </div>
   </section>
 
@@ -762,9 +762,8 @@ private void updateOffset(String eventId, long sequenceNumber) {
         </ul>
       </div>
       <div class="sub-card">
-        <h3>AWS & Implementation</h3>
+        <h3>Implementation</h3>
         <ul>
-          <li><a href="https://docs.aws.amazon.com/streams/latest/dev/introduction.html" target="_blank" rel="noopener">Amazon Kinesis Data Streams</a></li>
           <li><a href="https://www.postgresql.org/docs/current/sql-syntax.html" target="_blank" rel="noopener">PostgreSQL JSONB storage</a></li>
           <li><a href="https://docs.spring.io/spring-framework/reference/data-access/jdbc/core.html" target="_blank" rel="noopener">Spring JdbcTemplate</a></li>
         </ul>
