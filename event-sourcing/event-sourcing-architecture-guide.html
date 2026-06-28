@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Event Sourcing Architecture Guide</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body.guide-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .side-nav {
+      background: linear-gradient(135deg, rgba(255,255,255,0.97), rgba(230,242,255,0.96));
+      border-right: 1px solid var(--line);
+      padding: 2rem 1.25rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      box-shadow: 0 10px 28px rgba(15, 31, 60, 0.07);
+    }
+
+    .side-nav .nav-logo {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1.4rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--line);
+      line-height: 1.35;
+    }
+
+    .side-nav .nav-home-links {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .side-nav .nav-home-links a {
+      display: block;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: var(--accent);
+      text-decoration: none;
+      border: 1px solid rgba(29, 80, 184, 0.2);
+      background: rgba(29, 80, 184, 0.06);
+    }
+
+    .side-nav .nav-home-links a:hover {
+      background: rgba(29, 80, 184, 0.12);
+      color: var(--accent);
+    }
+
+    .side-nav .nav-section-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 1.1rem 0 0.35rem 0.5rem;
+    }
+
+    .side-nav a.toc-link {
+      display: block;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+      font-weight: 500;
+      background: transparent;
+    }
+
+    .side-nav a.toc-link:hover {
+      color: var(--text);
+      background: rgba(29, 80, 184, 0.07);
+      border-left-color: var(--accent);
+    }
+
+    .side-nav a.toc-link.active {
+      color: var(--accent);
+      background: rgba(29, 80, 184, 0.11);
+      border-left-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .guide-main {
+      width: auto;
+      max-width: 980px;
+      margin: 0;
+      padding: 3rem 3.5rem;
+    }
+
+    @media (max-width: 980px) {
+      body.guide-layout {
+        display: block;
+      }
+
+      .side-nav {
+        display: none;
+      }
+
+      .guide-main {
+        max-width: none;
+        padding: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body class="guide-layout">
+
+<nav class="side-nav" aria-label="Event Sourcing Guide Navigation">
+  <div class="nav-logo">Event Sourcing<br>Guide</div>
+
+  <div class="nav-home-links">
+    <a href="index.html">Back to Event Sourcing Index</a>
+    <a href="../index.html">Back to Research Home</a>
+  </div>
+
+  <span class="nav-section-label">Foundations</span>
+  <a href="#overview" class="toc-link">Overview</a>
+  <a href="#fit" class="toc-link">When This Architecture Fits</a>
+  <a href="#structure" class="toc-link">Reference Package Structure</a>
+
+  <span class="nav-section-label">Core Flow</span>
+  <a href="#write-flow" class="toc-link">Write Side Flow</a>
+  <a href="#aggregate-rules" class="toc-link">Aggregate Rules and Boundaries</a>
+  <a href="#event-store" class="toc-link">Event Store and Snapshots</a>
+  <a href="#read-side" class="toc-link">Read Models and Projections</a>
+  <a href="#outbox" class="toc-link">Outbox and Integration Events</a>
+  <a href="#sagas" class="toc-link">Sagas and Process Coordination</a>
+
+  <span class="nav-section-label">Delivery</span>
+  <a href="#testing" class="toc-link">Testing Strategy</a>
+  <a href="#operations" class="toc-link">Operations and Observability</a>
+  <a href="#migration" class="toc-link">Migration Strategy</a>
+  <a href="#anti-patterns" class="toc-link">Common Failure Patterns</a>
+  <a href="#roadmap" class="toc-link">Implementation Roadmap</a>
+  <a href="#references" class="toc-link">References</a>
+</nav>
+
+<main class="guide-main">
+
+  <section class="hero">
+    <div class="eyebrow">Architecture Guide · Spring Boot</div>
+    <h1>Event Sourcing Architecture Guide</h1>
+    <p class="lead">
+      A practical guide for teams that are newer to hexagonal architecture, DDD, and event-driven design. It explains how to structure a Spring Boot codebase when events are the source of truth, and where each pattern adds value.
+    </p>
+    <div class="pill-row">
+      <span class="pill">Spring Boot 4</span>
+      <span class="pill">Java 25</span>
+      <span class="pill">DDD + Hexagonal</span>
+      <span class="pill">Event Sourcing + CQRS</span>
+    </div>
+  </section>
+
+  <section class="section card" id="overview">
+    <div class="kicker">Section 01</div>
+    <h2>Overview</h2>
+    <p>
+      Event sourcing changes the center of the architecture. In a CRUD system, the current table state is the source of truth and events are optional. In an event-sourced system, events are the source of truth and current state is derived.
+    </p>
+    <p>
+      That shift is why teams often combine event sourcing with DDD and hexagonal boundaries. DDD helps define aggregate boundaries and invariants. Hexagonal structure keeps domain logic independent from persistence, messaging, and delivery protocols.
+    </p>
+    <div class="warn-note">
+      This guide is intended for systems where replay, auditability, and decoupled downstream consumers are core requirements. If those requirements are not present, a disciplined three-tier model is usually lower cost.
+    </div>
+  </section>
+
+  <section class="section card featured" id="fit">
+    <div class="kicker">Section 02</div>
+    <h2>When This Architecture Fits</h2>
+    <p>Use this as a decision frame before committing to event sourcing.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Signal</th>
+          <th>Interpretation</th>
+          <th>Recommendation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Strict audit trail for every state transition</td>
+          <td>Historical reconstruction is a hard requirement</td>
+          <td>Strong fit for event sourcing</td>
+        </tr>
+        <tr>
+          <td>Multiple downstream systems need independent models</td>
+          <td>Read-side decoupling has high value</td>
+          <td>Strong fit for projections + pub/sub</td>
+        </tr>
+        <tr>
+          <td>Domain invariants are complex and long-lived</td>
+          <td>Aggregate boundaries matter for correctness</td>
+          <td>Use DDD aggregates with clear stream boundaries</td>
+        </tr>
+        <tr>
+          <td>Mostly CRUD workflows, low domain complexity</td>
+          <td>Event infrastructure cost may exceed benefit</td>
+          <td>Prefer disciplined three-tier</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section card" id="structure">
+    <div class="kicker">Section 03</div>
+    <h2>Reference Package Structure</h2>
+    <p>
+      The structure below is intentionally explicit so responsibilities do not drift. Keep domain and application code free from framework and transport concerns.
+    </p>
+
+<pre><code>com.example.app
+  api
+    command
+    query
+  application
+    command
+      handler
+      port
+    query
+      handler
+      port
+  domain
+    aggregate
+    event
+    valueobject
+    policy
+  infrastructure
+    eventsourcing
+      store
+      snapshot
+      serializer
+    messaging
+      outbox
+      publisher
+      consumer
+    persistence
+      projection
+  projection
+    model
+    handler
+    checkpoint
+</code></pre>
+
+    <div class="grid three">
+      <div class="sub-card">
+        <h3>API</h3>
+        <p>Request validation, protocol mapping, response composition. No business invariants.</p>
+      </div>
+      <div class="sub-card">
+        <h3>Application</h3>
+        <p>Command/query orchestration and transactional boundaries. Calls domain methods and ports.</p>
+      </div>
+      <div class="sub-card">
+        <h3>Domain</h3>
+        <p>Aggregates, events, value objects, and invariants. No framework annotations beyond what is necessary.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section card featured" id="write-flow">
+    <div class="kicker">Section 04</div>
+    <h2>Write Side Flow</h2>
+    <p>Keep command handling deterministic and explicit.</p>
+
+    <div class="flow four">
+      <div class="step"><strong>1. Receive command</strong>Controller validates input shape and calls command handler.</div>
+      <div class="step"><strong>2. Load stream</strong>Application loads aggregate events and rebuilds aggregate state.</div>
+      <div class="step"><strong>3. Enforce rules</strong>Aggregate validates invariants and emits new domain events.</div>
+      <div class="step"><strong>4. Persist atomically</strong>Append events and outbox rows in one transaction.</div>
+    </div>
+
+<pre><code>@Transactional
+public void handle(ApproveApplicationCommand cmd) {
+    EventStream stream = eventStore.load(cmd.applicationId());
+    ApplicationAggregate aggregate = ApplicationAggregate.rehydrate(stream.events());
+
+    List&lt;DomainEvent&gt; newEvents = aggregate.approve(cmd.approverId(), clock.instant());
+
+    eventStore.append(
+        cmd.applicationId(),
+        stream.expectedVersion(),
+        newEvents
+    );
+
+    outboxPort.enqueue(newEvents);
+}
+</code></pre>
+
+    <div class="footer-note">
+      The expected version check is the main concurrency control. It prevents lost updates by rejecting appends based on stale aggregate versions.
+    </div>
+  </section>
+
+  <section class="section card" id="aggregate-rules">
+    <div class="kicker">Section 05</div>
+    <h2>Aggregate Rules and Boundaries</h2>
+    <p>
+      An aggregate is a consistency boundary. Keep it small enough to enforce invariants in one stream, but large enough to prevent invalid state transitions.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Rule</th>
+          <th>Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>One stream per aggregate instance</td>
+          <td>Clear ordering and optimistic concurrency at the right scope</td>
+        </tr>
+        <tr>
+          <td>Commands enforce invariants before emitting events</td>
+          <td>Invalid events are never persisted</td>
+        </tr>
+        <tr>
+          <td>Cross-aggregate workflows use saga/process manager</td>
+          <td>Avoid distributed transactions in aggregate handlers</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section card" id="event-store">
+    <div class="kicker">Section 06</div>
+    <h2>Event Store and Snapshots</h2>
+
+<pre><code>CREATE TABLE event_store (
+  id BIGSERIAL PRIMARY KEY,
+  aggregate_id VARCHAR(255) NOT NULL,
+  aggregate_type VARCHAR(120) NOT NULL,
+  sequence_number BIGINT NOT NULL,
+  event_id UUID NOT NULL UNIQUE,
+  event_type VARCHAR(200) NOT NULL,
+  payload JSONB NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(aggregate_id, sequence_number)
+);
+
+CREATE TABLE snapshot_store (
+  id BIGSERIAL PRIMARY KEY,
+  aggregate_id VARCHAR(255) NOT NULL,
+  aggregate_type VARCHAR(120) NOT NULL,
+  sequence_number BIGINT NOT NULL,
+  payload JSONB NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  UNIQUE(aggregate_id, sequence_number)
+);
+</code></pre>
+
+    <p>
+      Snapshotting is an optimization, not a source of truth. Rebuild logic must still work correctly from events alone.
+    </p>
+  </section>
+
+  <section class="section card featured" id="read-side">
+    <div class="kicker">Section 07</div>
+    <h2>Read Models and Projections</h2>
+    <p>
+      Read models are disposable and rebuildable. Design them for query use cases, not for domain invariants.
+    </p>
+
+    <div class="grid two">
+      <div class="sub-card">
+        <h3>Projection Rules</h3>
+        <ul>
+          <li>Use idempotent handlers keyed by event ID.</li>
+          <li>Persist checkpoint offsets per projection.</li>
+          <li>Support full rebuild from offset 0.</li>
+          <li>Treat projection schema as query-focused, not canonical.</li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Failure Handling</h3>
+        <ul>
+          <li>Retry transient errors with backoff.</li>
+          <li>Route poison events to dead-letter queue.</li>
+          <li>Expose projection lag metrics.</li>
+          <li>Provide replay tooling per projection.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section card" id="outbox">
+    <div class="kicker">Section 08</div>
+    <h2>Outbox and Integration Events</h2>
+    <p>
+      Publish integration events from an outbox table in the same transaction as the event append. This avoids dual-write inconsistency.
+    </p>
+
+<pre><code>CREATE TABLE outbox (
+  id BIGSERIAL PRIMARY KEY,
+  event_id UUID NOT NULL,
+  topic VARCHAR(255) NOT NULL,
+  payload JSONB NOT NULL,
+  published BOOLEAN NOT NULL DEFAULT FALSE,
+  attempt_count INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  published_at TIMESTAMP NULL
+);
+
+CREATE INDEX idx_outbox_pending ON outbox (published, created_at);
+</code></pre>
+
+    <div class="warn-note">
+      Use distributed locking for scheduled outbox workers in multi-replica deployments to avoid duplicate relay loops.
+    </div>
+  </section>
+
+  <section class="section card" id="sagas">
+    <div class="kicker">Section 09</div>
+    <h2>Sagas and Process Coordination</h2>
+    <p>
+      Use sagas when business processes span multiple aggregates or services with asynchronous steps.
+    </p>
+
+<pre><code>public class ApplicationCompletionSaga {
+    private boolean caseworkerApproved;
+    private boolean documentsVerified;
+
+    public List&lt;Command&gt; on(CaseworkerApproved event) {
+        caseworkerApproved = true;
+        return dispatchIfReady(event.applicationId());
+    }
+
+    public List&lt;Command&gt; on(DocumentsVerified event) {
+        documentsVerified = true;
+        return dispatchIfReady(event.applicationId());
+    }
+
+    private List&lt;Command&gt; dispatchIfReady(String applicationId) {
+        if (caseworkerApproved && documentsVerified) {
+            return List.of(new CompleteApplicationCommand(applicationId));
+        }
+        return List.of();
+    }
+}
+</code></pre>
+  </section>
+
+  <section class="section card" id="testing">
+    <div class="kicker">Section 10</div>
+    <h2>Testing Strategy</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Test Type</th>
+          <th>Scope</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Aggregate tests</td>
+          <td>Given events -> when command -> expect events</td>
+          <td>Invariant correctness</td>
+        </tr>
+        <tr>
+          <td>Projection tests</td>
+          <td>Given event sequence -> expect read model rows</td>
+          <td>Read-model correctness and idempotency</td>
+        </tr>
+        <tr>
+          <td>Contract tests</td>
+          <td>Event schema versions</td>
+          <td>Safe event evolution</td>
+        </tr>
+        <tr>
+          <td>Replay tests</td>
+          <td>Rebuild from historical events</td>
+          <td>Operational confidence for rebuilds</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section card" id="operations">
+    <div class="kicker">Section 11</div>
+    <h2>Operations and Observability</h2>
+    <div class="grid three">
+      <div class="sub-card">
+        <h3>Metrics</h3>
+        <ul>
+          <li>Append latency and failure rate</li>
+          <li>Projection lag and throughput</li>
+          <li>Outbox pending count and publish retries</li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Tracing</h3>
+        <ul>
+          <li>Correlation ID from command to event to projection</li>
+          <li>Causation ID for event chains</li>
+          <li>Command ID for duplicate detection</li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Runbooks</h3>
+        <ul>
+          <li>Projection replay procedure</li>
+          <li>Dead-letter investigation process</li>
+          <li>Outbox backlog recovery steps</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section card" id="migration">
+    <div class="kicker">Section 12</div>
+    <h2>Migration Strategy from CRUD</h2>
+
+    <div class="flow three">
+      <div class="step"><strong>Step 1</strong>Capture domain events from existing writes (still CRUD source of truth).</div>
+      <div class="step"><strong>Step 2</strong>Introduce outbox and projection handlers for new read models.</div>
+      <div class="step"><strong>Step 3</strong>Move selected aggregates to event-sourced writes with version checks.</div>
+    </div>
+
+    <div class="footer-note">
+      Migrate by bounded context, not by framework layer. Keep cut lines aligned with business capability boundaries.
+    </div>
+  </section>
+
+  <section class="section card" id="anti-patterns">
+    <div class="kicker">Section 13</div>
+    <h2>Common Failure Patterns</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Anti-pattern</th>
+          <th>Consequence</th>
+          <th>Correction</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Event schema as a copy of entity schema</td>
+          <td>Breaks consumers whenever storage evolves</td>
+          <td>Model events as business facts, not table snapshots</td>
+        </tr>
+        <tr>
+          <td>Shared database for all read models</td>
+          <td>Tight coupling and replay risk</td>
+          <td>Independent projection ownership and checkpoints</td>
+        </tr>
+        <tr>
+          <td>Putting domain rules in projection handlers</td>
+          <td>Invariants enforced too late</td>
+          <td>Keep invariants in aggregates only</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section card featured" id="roadmap">
+    <div class="kicker">Section 14</div>
+    <h2>Implementation Roadmap</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Duration</th>
+          <th>Deliverable</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Foundation</td>
+          <td>2-3 weeks</td>
+          <td>Event store schema, append/load API, aggregate test harness</td>
+        </tr>
+        <tr>
+          <td>Integration</td>
+          <td>2 weeks</td>
+          <td>Outbox relay, idempotent publisher, correlation metadata</td>
+        </tr>
+        <tr>
+          <td>Read side</td>
+          <td>2-3 weeks</td>
+          <td>Projection pipeline, checkpointing, replay tooling</td>
+        </tr>
+        <tr>
+          <td>Hardening</td>
+          <td>2 weeks</td>
+          <td>Operational runbooks, lag alerts, DLQ recovery drills</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="warn-note">
+      Start with one bounded context end-to-end. Do not attempt full-domain migration in the first iteration.
+    </div>
+  </section>
+
+  <section class="section card" id="references">
+    <div class="kicker">References</div>
+    <h2>Further Reading</h2>
+    <ul>
+      <li><a href="https://martinfowler.com/eaaDev/EventSourcing.html" target="_blank" rel="noopener">Event Sourcing — Martin Fowler</a></li>
+      <li><a href="https://martinfowler.com/bliki/CQRS.html" target="_blank" rel="noopener">CQRS — Martin Fowler</a></li>
+      <li><a href="https://microservices.io/patterns/data/transactional-outbox.html" target="_blank" rel="noopener">Transactional Outbox Pattern</a></li>
+      <li><a href="https://microservices.io/patterns/data/saga.html" target="_blank" rel="noopener">Saga Pattern</a></li>
+      <li><a href="https://docs.axoniq.io/reference-guide/" target="_blank" rel="noopener">Axon Framework Reference Guide</a></li>
+    </ul>
+  </section>
+
+  <div style="margin-top: 40px; text-align: center; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
+    <a href="index.html" class="pill" style="text-decoration: none;">Research Hub</a>
+    <a href="greenfield-spring-boot-event-sourcing.html" class="pill" style="text-decoration: none;">Greenfield guide</a>
+    <a href="comparison.html" class="pill" style="text-decoration: none;">Decision matrix</a>
+  </div>
+
+  <footer>
+    Event Sourcing Architecture Guide for Spring Boot teams
+  </footer>
+
+</main>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const links = document.querySelectorAll('.toc-link');
+    const sections = Array.from(links)
+      .map(l => {
+        const h = l.getAttribute('href');
+        return h && h.startsWith('#') ? document.querySelector(h) : null;
+      })
+      .filter(Boolean);
+
+    function highlight() {
+      const pos = window.scrollY + 140;
+      let current = null;
+      sections.forEach(s => { if (s && s.offsetTop <= pos) current = s; });
+      links.forEach(l => l.classList.remove('active'));
+      if (current) {
+        const id = '#' + current.id;
+        const active = document.querySelector('.toc-link[href="' + id + '"]');
+        if (active) active.classList.add('active');
+      }
+    }
+
+    highlight();
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => { highlight(); ticking = false; });
+        ticking = true;
+      }
+    });
+
+    links.forEach(l => {
+      l.addEventListener('click', e => {
+        e.preventDefault();
+        const t = document.querySelector(l.getAttribute('href'));
+        if (t) window.scrollTo({ top: t.offsetTop - 90, behavior: 'smooth' });
+      });
+    });
+  });
+</script>
+</body>
+</html>

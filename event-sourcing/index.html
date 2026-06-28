@@ -17,6 +17,36 @@
 
   <div class="grid auto">
     <article class="card home">
+      <span class="card-kicker">Comprehensive Guide</span>
+      <h2 class="card-title">Event Sourcing Architecture Guide</h2>
+      <p class="card-description">
+        A full architecture guide for teams newer to hexagonal design, DDD boundaries, and event-driven workflows in Spring Boot.
+      </p>
+      <ul class="card-features">
+        <li>Clear package structure and responsibility model</li>
+        <li>Write-side, projection, outbox, and saga workflows</li>
+        <li>Testing strategy and operational runbooks</li>
+        <li>Migration path from CRUD to event-sourced bounded contexts</li>
+      </ul>
+      <a href="event-sourcing-architecture-guide.html" class="card-link">Read architecture guide</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">Foundation</span>
+      <h2 class="card-title">Greenfield Implementation Guide</h2>
+      <p class="card-description">
+        Baseline event-sourcing design for Spring Boot: stream strategy, event contracts, package boundaries, and outbox-first reliability patterns.
+      </p>
+      <ul class="card-features">
+        <li>Per-aggregate stream boundaries</li>
+        <li>Versioned immutable event envelopes</li>
+        <li>Replay-safe projection patterns</li>
+        <li>Practical package organization for greenfield teams</li>
+      </ul>
+      <a href="greenfield-spring-boot-event-sourcing.html" class="card-link">Read Greenfield guide</a>
+    </article>
+
+    <article class="card home">
       <span class="card-kicker">Framework Approach</span>
       <h2 class="card-title">Axon Framework</h2>
       <p class="card-description">
@@ -84,6 +114,9 @@
           <li><strong>Maintainability:</strong> Code must be readable by generalist engineers.</li>
         </ul>
       </div>
+    </div>
+    <div class="footer-note" style="margin-top: 20px;">
+      Suggested reading order: start with the Event Sourcing Architecture Guide for concepts and boundaries, then the Greenfield guide for implementation shape, then evaluate Axon and Manual paths, and finally use the Decision Matrix.
     </div>
   </section>
 
