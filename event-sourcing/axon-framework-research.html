@@ -13,13 +13,13 @@
     <div class="eyebrow">Personal Research &amp; Exploration</div>
     <h1>Axon Framework Research Notes</h1>
     <p class="lead">
-      Event sourcing and CQRS with Spring Boot and PostgreSQL, without Axon Server. This document covers the framework's core concepts, implementation patterns, and trade-offs as explored in discussion. It is not a team decision, ADR, or formal recommendation.
+      Event sourcing and CQRS with Spring Boot and PostgreSQL, without Axon Server. This document covers the framework's core concepts, implementation patterns, and trade-offs as personal research for learning purposes.
     </p>
     <div class="pill-row">
       <span class="pill">Status: Exploration</span>
       <span class="pill">Framework: Axon 4.10</span>
       <span class="pill">Stack: Spring Boot 4 · Java 25 · PostgreSQL</span>
-      <span class="pill">Deploy: EKS · Helm · GitHub Actions</span>
+      <span class="pill">Deploy: Kubernetes · CI/CD · Containers</span>
       <span class="pill">Build: Gradle</span>
       <span class="pill">Date: June 2026</span>
     </div>
@@ -44,7 +44,7 @@
       <li><a href="#business-rules" class="toc-link">Business Rules and State Guards</a></li>
       <li><a href="#sagas" class="toc-link">Sagas — Multi-step Processes</a></li>
       <li><a href="#independent-status" class="toc-link">Independent Read Model Statuses</a></li>
-      <li><a href="#kinesis" class="toc-link">Kinesis Integration</a></li>
+      <li><a href="#kinesis" class="toc-link">Message Broker Integration</a></li>
       <li><a href="#kafka-alternative" class="toc-link">Kafka — Alternative Approach</a></li>
       <li><a href="#trade-offs" class="toc-link">Trade-offs Summary</a></li>
       <li><a href="#references" class="toc-link">References</a></li>
@@ -55,9 +55,8 @@
   <section class="section card" id="context">
     <div class="kicker">Context</div>
     <h2>What this document is</h2>
-    <p>This is personal research into using Axon Framework as the basis for an event-sourced write model in a Spring Boot application backed by PostgreSQL. The starting point is an existing application with a JPA entity model and an event history table that records API requests as an audit log — events as a side effect of writes rather than as the source of truth.</p>
-    <p>The discussion explored whether Axon can replace that pattern with a structured event store, provide built-in projection and replay mechanisms, and connect to AWS Kinesis for downstream fan-out to independent read consumers.</p>
-    <div class="footer-note"><strong>This is not a team decision, ADR, or formal recommendation.</strong> It covers one explored path among several and would require validation with stakeholders before any commitment.</div>
+    <p>This is personal research into using Axon Framework as the basis for an event-sourced write model in a Spring Boot service backed by PostgreSQL. The exploration examines how Axon provides a structured event store, built-in projection and replay mechanisms, and integration patterns for downstream fan-out to independent read consumers.</p>
+    <div class="footer-note"><strong>This is personal research for learning.</strong> It covers one explored path among several for educational purposes.</div>
   </section>
 
   <!-- WHAT AXON PROVIDES -->
@@ -207,65 +206,65 @@ spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect</code></pre
     </div>
 
 <pre><code>@Aggregate
-public class ApplicationAggregate {
+public class OrderAggregate {
 
     @AggregateIdentifier
-    private String applicationId;
-    private ApplicationStatus status;
-    private boolean caseworkerApproved;
+    private String orderId;
+    private OrderStatus status;
+    private boolean approved;
 
     // Constructor-level @CommandHandler handles creation commands
     @CommandHandler
-    public ApplicationAggregate(SubmitApplicationCommand cmd) {
-        if (cmd.getApplicationId() == null || cmd.getApplicantId() == null) {
-            throw new IllegalArgumentException("applicationId and applicantId are required");
+    public OrderAggregate(PlaceOrderCommand cmd) {
+        if (cmd.getOrderId() == null || cmd.getCustomerId() == null) {
+            throw new IllegalArgumentException("orderId and customerId are required");
         }
         AggregateLifecycle.apply(
-            new ApplicationSubmittedEvent(cmd.getApplicationId(), cmd.getApplicantId())
+            new OrderPlacedEvent(cmd.getOrderId(), cmd.getCustomerId())
         );
     }
 
     // @EventSourcingHandler rebuilds in-memory state — called on every load
     @EventSourcingHandler
-    public void on(ApplicationSubmittedEvent event) {
-        this.applicationId = event.getApplicationId();
-        this.status = ApplicationStatus.SUBMITTED;
-        this.caseworkerApproved = false;
+    public void on(OrderPlacedEvent event) {
+        this.orderId = event.getOrderId();
+        this.status = OrderStatus.PLACED;
+        this.approved = false;
     }
 
     @CommandHandler
-    public void handle(ApproveApplicationCommand cmd) {
-        if (status != ApplicationStatus.SUBMITTED) {
+    public void handle(ApproveOrderCommand cmd) {
+        if (status != OrderStatus.PLACED) {
             throw new IllegalStateException(
-                "Cannot approve: application is in state " + status
+                "Cannot approve: order is in state " + status
             );
         }
         AggregateLifecycle.apply(
-            new ApplicationApprovedEvent(applicationId, cmd.getApproverId())
+            new OrderApprovedEvent(orderId, cmd.getProcessedBy())
         );
     }
 
     @EventSourcingHandler
-    public void on(ApplicationApprovedEvent event) {
-        this.status = ApplicationStatus.APPROVED;
-        this.caseworkerApproved = true;
+    public void on(OrderApprovedEvent event) {
+        this.status = OrderStatus.APPROVED;
+        this.approved = true;
     }
 
     @CommandHandler
-    public void handle(WithdrawApplicationCommand cmd) {
-        if (status == ApplicationStatus.WITHDRAWN || status == ApplicationStatus.COMPLETE) {
+    public void handle(CancelOrderCommand cmd) {
+        if (status == OrderStatus.CANCELLED || status == OrderStatus.COMPLETED) {
             throw new IllegalStateException(
-                "Cannot withdraw: application is in state " + status
+                "Cannot cancel: order is in state " + status
             );
         }
         AggregateLifecycle.apply(
-            new ApplicationWithdrawnEvent(applicationId, cmd.getReason())
+            new OrderCancelledEvent(orderId, cmd.getReason())
         );
     }
 
     @EventSourcingHandler
-    public void on(ApplicationWithdrawnEvent event) {
-        this.status = ApplicationStatus.WITHDRAWN;
+    public void on(OrderCancelledEvent event) {
+        this.status = OrderStatus.CANCELLED;
     }
 }</code></pre>
 
@@ -295,7 +294,7 @@ public class ApplicationAggregate {
         </tr>
         <tr>
           <td><code>token_entry</code></td>
-          <td>Tracking processor positions. One row per processor per segment. Equivalent to a Kinesis sequence number checkpoint.</td>
+          <td>Tracking processor positions. One row per processor per segment. Equivalent to a message broker sequence number checkpoint.</td>
           <td><code>processor_name</code>, <code>segment</code>, <code>token</code> (serialized position), <code>owner</code></td>
         </tr>
         <tr>
@@ -617,7 +616,7 @@ public SnapshottingConfiguration snapshottingConfiguration(
   <section class="section card featured" id="outbox">
     <div class="kicker">Reliability</div>
     <h2>Built-in outbox behaviour</h2>
-    <p>Axon does not call it an outbox, but the event store combined with tracking processors provides the same guarantees without any additional infrastructure. The event is written to PostgreSQL within the aggregate's local transaction. The downstream action — updating a read model, publishing to Kinesis — happens separately via a tracking processor that only advances its token after the action succeeds.</p>
+    <p>Axon does not call it an outbox, but the event store combined with tracking processors provides the same guarantees without any additional infrastructure. The event is written to PostgreSQL within the aggregate's local transaction. The downstream action — updating a read model, publishing to a message broker — happens separately via a tracking processor that only advances its token after the action succeeds.</p>
 
     <div class="flow">
       <div class="step">
@@ -630,7 +629,7 @@ public SnapshottingConfiguration snapshottingConfiguration(
       </div>
       <div class="step">
         <strong>3. Handler executes</strong>
-        <code>@EventHandler</code> runs — updates the read model, publishes to Kinesis, or any other action.
+        <code>@EventHandler</code> runs — updates the read model, publishes to message broker, or any other action.
       </div>
       <div class="step">
         <strong>4. Token advances</strong>
@@ -675,18 +674,18 @@ public void configure(EventProcessingConfigurer configurer) {
 
     <div class="grid two">
       <div class="sub-card">
-        <h3>Option 1 — Command interceptor + S3</h3>
-        <p>A <code>MessageDispatchInterceptor</code> writes the full request payload to S3 before the command is dispatched. It attaches the resulting S3 key to the command's metadata. That key propagates into the resulting event's metadata automatically, linking every domain event back to its raw request.</p>
+        <h3>Option 1 — Command interceptor + object storage</h3>
+        <p>A <code>MessageDispatchInterceptor</code> writes the full request payload to object storage before the command is dispatched. It attaches the resulting storage key to the command's metadata. That key propagates into the resulting event's metadata automatically, linking every domain event back to its raw request.</p>
 <pre><code>@Bean
 public MessageDispatchInterceptor&lt;CommandMessage&lt;?&gt;&gt;
         auditInterceptor(AuditStore auditStore) {
     return messages -> (index, msg) -> {
-        String s3Key = auditStore.store(
+        String storageKey = auditStore.store(
             msg.getPayloadType().getSimpleName(),
             msg.getPayload()
         );
         return msg.andMetaData(
-            Map.of("auditKey", s3Key,
+            Map.of("auditKey", storageKey,
                    "auditTimestamp", Instant.now().toString())
         );
     };
@@ -702,12 +701,12 @@ public void registerInterceptor(
       </div>
       <div class="sub-card">
         <h3>Option 2 — Separate audit log</h3>
-        <p>A servlet filter writes the full request to an append-only audit table or S3 before the command is dispatched. Axon has no knowledge of it. The two stores are linked only by a correlation ID passed as an HTTP header on every request.</p>
+        <p>A servlet filter writes the full request to an append-only audit table or object storage before the command is dispatched. Axon has no knowledge of it. The two stores are linked only by a correlation ID passed as an HTTP header on every request.</p>
         <ul>
           <li>Simpler — no Axon-specific code required</li>
           <li>Covers read requests as well as writes</li>
           <li>Correlation ID links audit record to domain event via metadata</li>
-          <li>Audit log can be written to S3 directly from the filter using AWS SDK v2</li>
+          <li>Audit log can be written to object storage directly from the filter</li>
         </ul>
         <div class="footer-note" style="margin-top:14px">
           This option keeps the two concerns completely independent. The audit log and the event store are separate systems. Either can evolve without affecting the other.
@@ -715,7 +714,7 @@ public void registerInterceptor(
       </div>
     </div>
 
-    <p style="margin-top:18px">In both options, Axon events remain small and domain-focused. The S3 audit log holds the raw compliance record. They are linked by a key or correlation ID, not by embedding payloads in events.</p>
+    <p style="margin-top:18px">In both options, Axon events remain small and domain-focused. The object storage audit log holds the raw compliance record. They are linked by a key or correlation ID, not by embedding payloads in events.</p>
   </section>
 
   <!-- BUSINESS RULES -->
@@ -964,11 +963,11 @@ public class CaseworkerDashboardProjection {
   <!-- KINESIS -->
   <section class="section card featured" id="kinesis">
     <div class="kicker">External Distribution</div>
-    <h2>Kinesis integration</h2>
-    <p>There is no native Axon Kinesis extension. The standard approach is a dedicated tracking processor that reads committed events from the event store and publishes them to Kinesis. Events are durably stored in PostgreSQL before the processor runs — the same structural guarantee as the outbox pattern.</p>
+    <h2>Message Broker Integration</h2>
+    <p>There is no universal Axon message broker extension. The standard approach is a dedicated tracking processor that reads committed events from the event store and publishes them to your chosen broker. Events are durably stored in PostgreSQL before the processor runs — the same structural guarantee as the outbox pattern.</p>
 
     <div class="diagram">
-      <svg viewBox="0 0 900 175" role="img" aria-label="Kinesis publisher tracking processor flow">
+      <svg viewBox="0 0 900 175" role="img" aria-label="Message broker publisher tracking processor flow">
         <defs>
           <marker id="a5b" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
             <path d="M0,0 L10,3 L0,6 z" fill="#1d4ed8"/>
@@ -988,14 +987,14 @@ public class CaseworkerDashboardProjection {
 
         <text x="112" y="82"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#1d4ed8" font-weight="600">domain_event_entry</text>
         <text x="112" y="100" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">PostgreSQL</text>
-        <text x="365" y="82"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#0f1f33">kinesis-publisher</text>
+        <text x="365" y="82"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="14" fill="#0f1f33">event-publisher</text>
         <text x="365" y="100" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">Tracking Processor</text>
-        <text x="635" y="32"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0369a1">publish to Kinesis</text>
+        <text x="635" y="32"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0369a1">publish to broker</text>
         <text x="635" y="48"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">on success</text>
         <text x="635" y="122" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#166534">token advances</text>
         <text x="635" y="140" text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#4a6080">committed to token_entry</text>
-        <text x="842" y="32"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0369a1">Kinesis</text>
-        <text x="842" y="48"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#0369a1">Stream</text>
+        <text x="842" y="32"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="13" fill="#0369a1">Message</text>
+        <text x="842" y="48"  text-anchor="middle" font-family="Avenir Next,sans-serif" font-size="12" fill="#0369a1">Broker</text>
 
         <line x1="205" y1="85"  x2="265" y2="85"  stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#a5b)"/>
         <line x1="465" y1="72"  x2="535" y2="37"  stroke="#0369a1" stroke-width="2"   marker-end="url(#a5c)"/>
@@ -1006,45 +1005,31 @@ public class CaseworkerDashboardProjection {
       </svg>
     </div>
 
-<pre><code>// build.gradle — add AWS SDK for Kinesis
-dependencies {
-    implementation 'software.amazon.awssdk:kinesis:2.25.0'
-    // ... other dependencies
-}
-
-// Kinesis publisher tracking processor
+<pre><code>// Example: Custom message broker publisher tracking processor
 @Component
-@ProcessingGroup("kinesis-publisher")
-public class KinesisEventPublisher {
+@ProcessingGroup("event-publisher")
+public class EventPublisher {
 
-    private final KinesisAsyncClient kinesis;
+    private final MessageBrokerClient client;
     private final ObjectMapper objectMapper;
-    private final String streamName;
+    private final String topicName;
 
-    public KinesisEventPublisher(KinesisAsyncClient kinesis,
-                                  ObjectMapper objectMapper,
-                                  @Value("${kinesis.stream.name}") String streamName) {
-        this.kinesis = kinesis;
-        this.objectMapper = objectMapper;
-        this.streamName = streamName;
+    @EventHandler
+    public void on(OrderPlacedEvent event,
+                   @MessageIdentifier String eventId) {
+        publish(eventId, event.getOrderId(), event);
     }
 
     @EventHandler
-    public void on(ApplicationSubmittedEvent event,
+    public void on(OrderApprovedEvent event,
                    @MessageIdentifier String eventId) {
-        publish(eventId, event.getApplicationId(), event);
+        publish(eventId, event.getOrderId(), event);
     }
 
     @EventHandler
-    public void on(ApplicationApprovedEvent event,
+    public void on(OrderCompletedEvent event,
                    @MessageIdentifier String eventId) {
-        publish(eventId, event.getApplicationId(), event);
-    }
-
-    @EventHandler
-    public void on(ApplicationCompletedEvent event,
-                   @MessageIdentifier String eventId) {
-        publish(eventId, event.getApplicationId(), event);
+        publish(eventId, event.getOrderId(), event);
     }
 
     private void publish(String eventId, String partitionKey, Object payload) {
@@ -1054,12 +1039,8 @@ public class KinesisEventPublisher {
                 "eventType", payload.getClass().getSimpleName(),
                 "payload", payload
             ));
-            PutRecordRequest request = PutRecordRequest.builder()
-                .streamName(streamName)
-                .partitionKey(partitionKey)   // applicationId ensures ordering per application
-                .data(SdkBytes.fromByteArray(data))
-                .build();
-            kinesis.putRecord(request).join();
+            // Example: generic broker publish call
+            client.publish(topicName, partitionKey, data);
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Failed to serialize event " + eventId, e);
         }
@@ -1067,7 +1048,7 @@ public class KinesisEventPublisher {
 }</code></pre>
 
     <div class="warn-note">
-      <strong>At-least-once delivery to Kinesis.</strong> Kinesis consumers must handle duplicates using <code>event_identifier</code> as the idempotency key. Configure a dead letter queue for the <code>kinesis-publisher</code> processing group so a consistently failing event does not stall publication for all subsequent events. Partitioning by <code>applicationId</code> ensures ordering per application within a Kinesis shard.
+      <strong>At-least-once delivery to broker.</strong> Consumers must handle duplicates using <code>event_identifier</code> as the idempotency key. Configure a dead letter queue for the <code>event-publisher</code> processing group so a consistently failing event does not stall publication for all subsequent events. Partitioning by aggregate ID ensures ordering per entity within a broker partition.
     </div>
   </section>
 
@@ -1078,8 +1059,8 @@ public class KinesisEventPublisher {
         <span class="toggle-icon"></span>
         <div>
           <div class="kicker" style="margin-bottom:6px">Alternative Approach</div>
-          <h2 style="margin-bottom:8px">Kafka instead of Kinesis</h2>
-          <p class="lead" style="font-size:0.95rem">Axon has a native Kafka extension that removes the need for a custom tracking processor publisher. On EKS, Kafka can run via the Strimzi operator or Amazon MSK. Click to expand pros, cons, and deployment notes.</p>
+          <h2 style="margin-bottom:8px">Kafka as Alternative</h2>
+          <p class="lead" style="font-size:0.95rem">Axon has a native Kafka extension that removes the need for a custom tracking processor publisher. Kafka can run in many environments. Click to expand pros, cons, and deployment notes.</p>
         </div>
       </summary>
       <div class="fold-body">
@@ -1104,12 +1085,12 @@ axon.kafka.publisher.confirmation-mode=transactional
 axon.kafka.producer.transaction-id-prefix=axon-producer-
 axon.kafka.default-topic=application-events</code></pre>
 
-        <h3 style="margin-top:22px">Deployment on EKS</h3>
-        <p style="margin-top:8px">Two options when running on EKS with Helm:</p>
+        <h3 style="margin-top:22px">Deployment on Kubernetes</h3>
+        <p style="margin-top:8px">Two options when running on Kubernetes with container orchestration:</p>
         <div class="grid two" style="margin-top:14px">
           <div class="sub-card">
             <h3>Strimzi operator (self-hosted)</h3>
-            <p>Kafka runs inside the cluster as Kubernetes resources managed by the Strimzi operator. A Helm chart is available and deploys alongside other application Helm charts.</p>
+            <p>Kafka runs inside the cluster as Kubernetes resources managed by an operator. A chart is available and deploys alongside other application manifests.</p>
 <pre style="font-size:0.8rem"><code>helm repo add strimzi https://strimzi.io/charts/
 helm install strimzi-kafka-operator \
   strimzi/strimzi-kafka-operator \
@@ -1121,19 +1102,19 @@ helm install strimzi-kafka-operator \
             </ul>
           </div>
           <div class="sub-card">
-            <h3>Amazon MSK (managed)</h3>
-            <p>AWS-managed Kafka. No broker pods in EKS. Applications running on EKS connect to MSK over the VPC using IAM authentication via IRSA.</p>
+            <h3>Managed Kafka Service</h3>
+            <p>Managed Kafka service. No broker pods in cluster. Applications connect over network.</p>
             <ul style="margin-top:10px">
-              <li>No broker operational overhead — AWS manages availability and patching</li>
-              <li>IAM-based auth integrates naturally with EKS IRSA</li>
-              <li>More expensive than Kinesis for low-throughput workloads</li>
+              <li>No broker operational overhead — managed service handles availability and patching</li>
+              <li>Managed auth integration</li>
+              <li>More expensive than managed stream services for low-throughput workloads</li>
               <li>Some Kafka features are restricted compared to self-hosted</li>
             </ul>
           </div>
         </div>
 
-        <h3 style="margin-top:24px">GitHub Actions — local testing with Testcontainers</h3>
-        <p style="margin-top:8px">Testcontainers provides an embedded Kafka container that runs inside GitHub Actions workflows without any external broker. This is a significant advantage over Kinesis, which requires either LocalStack or mocking for local and CI testing.</p>
+        <h3 style="margin-top:24px">CI/CD — local testing with Testcontainers</h3>
+        <p style="margin-top:8px">Testcontainers provides an embedded Kafka container that runs inside CI workflows without any external broker. This is a significant testing advantage.</p>
 <pre><code>// build.gradle
 testImplementation 'org.testcontainers:kafka:1.19.8'
 testImplementation 'org.testcontainers:junit-jupiter:1.19.8'</code></pre>
@@ -1153,25 +1134,25 @@ class KafkaPublisherIntegrationTest {
     // Test that events are published to Kafka after commands are handled
 }</code></pre>
 
-        <h3 style="margin-top:24px">Pros and cons vs Kinesis</h3>
+        <h3 style="margin-top:24px">Pros and cons vs managed stream services</h3>
         <div class="grid two" style="margin-top:14px">
           <div class="sub-card">
-            <h3 style="color:var(--good)">Advantages over Kinesis</h3>
+            <h3 style="color:var(--good)">Advantages</h3>
             <ul>
               <li>Native Axon extension — no custom tracking processor publisher to write or maintain</li>
-              <li>Configurable retention (hours to indefinite, vs Kinesis 1–365 days)</li>
+              <li>Configurable retention (hours to indefinite, vs cloud stream services with fixed limits)</li>
               <li>Consumer group offset reset provides native replay from any position without custom logic</li>
-              <li>Testcontainers Kafka image works in GitHub Actions without LocalStack or mocking</li>
-              <li>Richer tooling: Kafka UI, Schema Registry (Confluent or AWS Glue), kcat for inspection</li>
-              <li>Strimzi keeps everything inside EKS — no dependency on a second AWS streaming service</li>
+              <li>Testcontainers Kafka image works in CI without mocking</li>
+              <li>Richer tooling: Kafka UI, Schema Registry, inspection tools</li>
+              <li>Operator keeps everything inside Kubernetes cluster</li>
             </ul>
           </div>
           <div class="sub-card">
-            <h3 style="color:var(--warn)">Disadvantages vs Kinesis</h3>
+            <h3 style="color:var(--warn)">Trade-offs</h3>
             <ul>
-              <li>At ~2–5 events per second peak, Kinesis is sufficient and operationally lighter than self-hosted Kafka</li>
-              <li>MSK costs more than Kinesis for this throughput level; the volume does not justify the price difference</li>
-              <li>Kinesis integrates natively with Lambda, Firehose, S3, and CloudWatch without additional connectors</li>
+              <li>At low event rates, managed stream services may be operationally lighter than self-hosted Kafka</li>
+              <li>Managed Kafka services may cost more than alternative stream services for low-throughput workloads</li>
+              <li>Cloud-native message brokers integrate natively with serverless functions and storage without additional connectors</li>
               <li>The Axon Kafka extension adds its own configuration surface (producer transactions, topic naming, consumer group setup)</li>
               <li>At-least-once delivery and idempotency requirements are identical — Kafka does not remove this concern</li>
             </ul>
@@ -1179,7 +1160,7 @@ class KafkaPublisherIntegrationTest {
         </div>
 
         <div class="footer-note" style="margin-top:18px">
-          At ~100,000 applications per year, Kinesis is the simpler AWS-native choice. Kafka becomes more compelling if throughput grows significantly, if longer native retention without an S3 archive is needed, or if non-AWS consumers need to subscribe without going through a Kinesis-specific SDK. The native Axon Kafka extension is a meaningful advantage if the team is already running Kafka elsewhere in the platform.
+          For moderate transaction volumes, a managed message broker is often the simpler choice. Kafka becomes more compelling if throughput grows significantly, if longer native retention is needed, or if diverse consumer ecosystems need to subscribe. The native Axon Kafka extension is a meaningful advantage if the team is already running Kafka elsewhere in the platform.
         </div>
       </div>
     </details>

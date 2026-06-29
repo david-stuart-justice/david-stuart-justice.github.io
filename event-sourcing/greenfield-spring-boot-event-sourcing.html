@@ -54,7 +54,7 @@
           <text x="1015" y="106" text-anchor="middle" font-size="15" fill="#0f1f33" font-family="Avenir Next">Read Database / Query API</text>
 
           <rect x="900" y="150" width="230" height="60" rx="12" fill="#ffffff" stroke="#9db6dc" stroke-width="2"/>
-          <text x="1015" y="186" text-anchor="middle" font-size="15" fill="#0f1f33" font-family="Avenir Next">Outbox Worker -> Kafka</text>
+          <text x="1015" y="186" text-anchor="middle" font-size="15" fill="#0f1f33" font-family="Avenir Next">Outbox Worker -> Broker</text>
 
           <line x1="170" y1="140" x2="220" y2="140" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#arrow)"/>
           <line x1="390" y1="140" x2="440" y2="140" stroke="#1d4ed8" stroke-width="2.5" marker-end="url(#arrow)"/>
@@ -328,7 +328,7 @@
         </article>
       </div>
       <div class="note">Keep the domain package free from framework dependencies where practical. Spring annotations are fine in application and infrastructure layers, but business rules remain easier to test and evolve when kept in plain Java classes.</div>
-      <div class="note warn">Avoid publishing directly to Kafka inside command transactions. Use the outbox pattern so event persistence and publication remain consistent during failures.</div>
+      <div class="note warn">Avoid publishing directly to message brokers inside command transactions. Use the outbox pattern so event persistence and publication remain consistent during failures.</div>
     </section>
 
     <section class="section">
