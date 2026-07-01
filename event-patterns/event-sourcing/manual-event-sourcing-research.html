@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Manual Event Sourcing with Spring Boot — Research Notes</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../styles.css">
 </head><body>
 <main class="shell">
 
@@ -13,11 +13,11 @@
     <div class="eyebrow">Personal Research &amp; Exploration</div>
     <h1>Manual Event Sourcing with Spring Boot</h1>
     <p class="lead">
-      Building event sourcing from scratch using Spring Boot, JPA, custom event tables, the outbox pattern, and message streaming. This document covers the approach, trade-offs, and how it compares to using a framework like Axon. It is exploratory research for learning purposes.
+      Building event sourcing from scratch using Spring Boot, JPA, and custom event tables. Covers core event sourcing (persistence + CQRS) plus optional external integration via outbox and message brokers. This document explores the approach, trade-offs, and comparison to frameworks like Axon.
     </p>
     <div class="pill-row">
       <span class="pill">Status: Exploration</span>
-      <span class="pill">Pattern: Event Sourcing + Outbox + Streaming</span>
+      <span class="pill">Core: Event Sourcing + CQRS</span>
       <span class="pill">Stack: Spring Boot 4 · Java 25 · PostgreSQL</span>
       <span class="pill">Build: Gradle</span>
       <span class="pill">Date: June 2026</span>
@@ -48,16 +48,17 @@
   <section class="section card" id="context">
     <div class="kicker">Context</div>
     <h2>What this document covers</h2>
-    <p>Event sourcing without a framework means you own the event store schema, replay logic, outbox management, and read-side projection tracking. This approach gives maximum control and fine-grained optimization for your specific domain. It also means you build and maintain infrastructure that frameworks like Axon provide out of the box.</p>
-    <p>This document assumes a greenfield service with moderate transaction volume, Spring Boot backend, PostgreSQL storage, and message broker for downstream fan-out to independent consumers.</p>
-    <div class="footer-note">This is exploratory research for learning and comparison purposes.</div>
+    <p>Event sourcing without a framework means you own the event store schema, replay logic, and read-side projection tracking. This is the core pattern. Optionally, if you need cross-service integration, you also own outbox management and message broker publishing.</p>
+    <p>This document covers both: <strong>(1)</strong> Core event sourcing for internal persistence and CQRS, and <strong>(2)</strong> Optional external integration via outbox pattern and message brokers. Not all event-sourced systems need external integration.</p>
+    <div class="footer-note">This is exploratory research for learning and comparison purposes. The message broker integration is shown as an optional extension, not a requirement.</div>
   </section>
 
   <!-- ARCHITECTURE -->
   <section class="section card featured" id="architecture">
     <div class="kicker">High Level</div>
     <h2>Architecture overview</h2>
-    <p>Commands update the event log and trigger the outbox. Outbox rows are published to the message broker asynchronously. Read-side consumers subscribe to the event stream and build projections independently. Unlike Axon, there is no automatic aggregate loading or optimistic concurrency checking — you implement these patterns for your domain.</p>
+    <p><strong>Core event sourcing:</strong> Commands update the event store. Internal projections read from the event store to build read models within the same service. This is sufficient for many use cases.</p>
+    <p><strong>Optional external integration:</strong> If other services need to react to events, add an outbox table and publisher. The outbox ensures reliable delivery to message brokers. External consumers subscribe to the broker and build their own projections. Unlike Axon, there is no automatic aggregate loading or optimistic concurrency checking — you implement these patterns for your domain.</p>
 
     <div class="diagram">
       <svg viewBox="0 0 1000 160" role="img" aria-label="Command to event store to outbox to message broker flow">
@@ -429,7 +430,7 @@ public void approveOrder(String orderId, String processedBy) {
   <section class="section card" id="event-replay">
     <div class="kicker">Reconstruction</div>
     <h2>Event replay &amp; snapshots</h2>
-    <p>Replay is straightforward: order events by creation time or global sequence, deserialize, and apply. For large event streams, implement snapshotting to avoid replaying hundreds of events on every load.</p>
+    <p>Replay is straightforward: order events by creation time or global sequence, deserialize, and apply. For aggregates with long event histories, implement snapshotting to avoid replaying hundreds of events on every load.</p>
 
     <h3>Full replay (for testing or debugging)</h3>
 <pre><code>public void replayAllEvents(Consumer&lt;DomainEvent&gt; handler) {
@@ -741,9 +742,10 @@ private void updateOffset(String eventId, long sequenceNumber) {
     <p>Manual implementation provides the highest degree of transparency and control, making it ideal for teams with strong SQL expertise who wish to avoid the "magic" of framework abstractions. However, it requires owning the infrastructure for concurrency, outbox relaying, and aggregate loading.</p>
     
     <div style="margin-top: 20px;">
-      <a href="greenfield-spring-boot-event-sourcing.html" class="pill">Read baseline Greenfield guide</a>
+      <a href="event-sourcing-foundations.html" class="pill">Event Sourcing Foundations</a>
+      <a href="spring-boot-package-organization.html" class="pill">Package Organization</a>
       <a href="comparison.html" class="pill">Compare with Axon Framework →</a>
-      <a href="index.html" class="pill">← Back to Research Hub</a>
+      <a href="../index.html" class="pill">← Back to Research Hub</a>
     </div>
   </section>
 

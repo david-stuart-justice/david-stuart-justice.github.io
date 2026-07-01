@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Axon Framework — Research Notes</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../styles.css">
 </head><body>
 <main class="shell">
 
@@ -55,8 +55,8 @@
   <section class="section card" id="context">
     <div class="kicker">Context</div>
     <h2>What this document is</h2>
-    <p>This is personal research into using Axon Framework as the basis for an event-sourced write model in a Spring Boot service backed by PostgreSQL. The exploration examines how Axon provides a structured event store, built-in projection and replay mechanisms, and integration patterns for downstream fan-out to independent read consumers.</p>
-    <div class="footer-note"><strong>This is personal research for learning.</strong> It covers one explored path among several for educational purposes.</div>
+    <p>This is personal research into using Axon Framework for event sourcing with Spring Boot and PostgreSQL. The exploration covers Axon's core event sourcing capabilities (event store, projections, replay) and optional external integration patterns for publishing events to message brokers when cross-service communication is needed.</p>
+    <div class="footer-note"><strong>This is personal research for learning.</strong> It covers one explored path among several for educational purposes. Message broker integration is shown as an optional extension, not a core requirement of event sourcing.</div>
   </section>
 
   <!-- WHAT AXON PROVIDES -->
@@ -289,7 +289,7 @@ public class OrderAggregate {
         </tr>
         <tr>
           <td><code>snapshot_event_entry</code></td>
-          <td>Aggregate snapshots, written periodically to avoid replaying long event streams on every load.</td>
+          <td>Aggregate snapshots, written periodically to avoid replaying long event histories on every load.</td>
           <td><code>aggregate_identifier</code>, <code>sequence_number</code>, <code>type</code>, <code>payload</code></td>
         </tr>
         <tr>
@@ -878,7 +878,7 @@ public class ApplicationCompletionSaga {
   <section class="section card" id="independent-status">
     <div class="kicker">Read Models</div>
     <h2>Independent read model statuses</h2>
-    <p>Multiple tracking processors can consume the same event stream independently and maintain different status representations. Each processor has its own token in <code>token_entry</code> and runs at its own pace. A failure or replay in one does not affect the others.</p>
+    <p>Multiple tracking processors can read from the event store independently and maintain different status representations. Each processor has its own token in <code>token_entry</code> and runs at its own pace. A failure or replay in one does not affect the others.</p>
     <p>A canonical status projection holds the authoritative lifecycle state enforced by the aggregate's business rules. Domain-specific projections derive their own status representations from the same events, shaped for a specific consumer's workflow.</p>
 
     <div class="grid two">
@@ -1274,10 +1274,11 @@ class KafkaPublisherIntegrationTest {
   </section>
 
   <div style="margin-top: 40px; text-align: center; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
-    <a href="greenfield-spring-boot-event-sourcing.html" class="pill" style="text-decoration: none;">Read baseline Greenfield guide</a>
+    <a href="event-sourcing-foundations.html" class="pill" style="text-decoration: none;">Event Sourcing Foundations</a>
+    <a href="spring-boot-package-organization.html" class="pill" style="text-decoration: none;">Package Organization</a>
     <a href="manual-event-sourcing-research.html" class="pill" style="text-decoration: none;">View Manual approach</a>
     <a href="comparison.html" class="pill" style="text-decoration: none;">Open Decision Matrix</a>
-    <a href="index.html" class="pill" style="text-decoration: none;">← Back to Research Hub</a>
+    <a href="../index.html" class="pill" style="text-decoration: none;">← Back to Research Hub</a>
   </div>
 
 </main>

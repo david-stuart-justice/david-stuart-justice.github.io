@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pattern Independence — Event Sourcing, Event Streaming, and Event-Driven Architecture</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="shell">
+  <section class="hero">
+    <div class="eyebrow">Core Concepts</div>
+    <h1>Pattern Independence</h1>
+    <p class="lead">
+      Event sourcing, event streaming, and event-driven architecture are three independent patterns that are often confused. You can use any one without the others. This guide clarifies what each pattern does and when to combine them.
+    </p>
+  </section>
+
+  <section class="section card featured">
+    <div class="kicker">Critical Insight</div>
+    <h2>The Three Patterns Are Independent</h2>
+    <p>
+      The word "event" appears in all three patterns, leading to confusion. But they solve different problems and can be used independently.
+    </p>
+    
+    <div class="grid three">
+      <div class="sub-card">
+        <h3>Event Sourcing</h3>
+        <p><strong>Problem:</strong> How to persist state</p>
+        <p><strong>Solution:</strong> Store state as events, rebuild by replay</p>
+        <p><strong>Scope:</strong> Single service, internal</p>
+      </div>
+      <div class="sub-card">
+        <h3>Event Streaming</h3>
+        <p><strong>Problem:</strong> How to move data between services</p>
+        <p><strong>Solution:</strong> Durable message brokers (Kafka, Kinesis)</p>
+        <p><strong>Scope:</strong> Cross-service integration</p>
+      </div>
+      <div class="sub-card">
+        <h3>Event-Driven Architecture</h3>
+        <p><strong>Problem:</strong> How services communicate</p>
+        <p><strong>Solution:</strong> Asynchronous events instead of synchronous calls</p>
+        <p><strong>Scope:</strong> System design philosophy</p>
+      </div>
+    </div>
+  </section>
+
+  <h2 style="margin-top: 40px; margin-bottom: 20px;">Common Combinations</h2>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="kicker">Pattern 1</div>
+      <h2>Event Sourcing Alone</h2>
+      <p>Use event sourcing for persistence and CQRS within a single service. No message broker needed. Expose data via REST/GraphQL APIs.</p>
+      
+      <div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-radius: 8px; font-family: monospace; font-size: 0.85rem;">
+Command → Event Store → Read Models → API<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;External Consumers Query
+      </div>
+
+      <h3 style="margin-top: 20px;">Benefits</h3>
+      <ul>
+        <li>Complete audit trail</li>
+        <li>Time travel queries</li>
+        <li>Rebuild read models from history</li>
+        <li>Add new projections without data migration</li>
+      </ul>
+
+      <h3 style="margin-top: 20px;">Trade-offs</h3>
+      <ul>
+        <li>Consumers coupled to your API</li>
+        <li>API is single point of failure</li>
+        <li>Synchronous dependencies</li>
+      </ul>
+
+      <div class="warn-note" style="margin-top: 16px;">
+        <strong>When to use:</strong> You need event sourcing benefits (audit, replay, time travel) but don't need asynchronous cross-service integration.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="kicker">Pattern 2</div>
+      <h2>Event Streaming Alone (CRUD + Kafka)</h2>
+      <p>Traditional database with row updates. Publish thin events to Kafka for integration, analytics, and notifications.</p>
+      
+      <div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-radius: 8px; font-family: monospace; font-size: 0.85rem;">
+Command → UPDATE database → Publish event<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Kafka → External Consumers
+      </div>
+
+      <h3 style="margin-top: 20px;">Benefits</h3>
+      <ul>
+        <li>Loose coupling between services</li>
+        <li>Asynchronous, resilient integration</li>
+        <li>Consumers build custom projections</li>
+        <li>Simpler than event sourcing</li>
+      </ul>
+
+      <h3 style="margin-top: 20px;">Trade-offs</h3>
+      <ul>
+        <li>No historical replay (unless Kafka retention is very long)</li>
+        <li>No built-in audit trail</li>
+        <li>Cannot rebuild state from events</li>
+      </ul>
+
+      <div class="warn-note" style="margin-top: 16px;">
+        <strong>When to use:</strong> Most microservices. You need asynchronous integration but don't need event sourcing's time travel and audit capabilities.
+      </div>
+    </div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="kicker">Pattern 3</div>
+      <h2>Event Sourcing + Event Streaming</h2>
+      <p>Full combination: event sourcing for persistence, publish events to Kafka for external integration.</p>
+      
+      <div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-radius: 8px; font-family: monospace; font-size: 0.85rem;">
+Command → Event Store (rich events)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Internal Projections<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Transform to thin events<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Kafka → External Consumers
+      </div>
+
+      <h3 style="margin-top: 20px;">Benefits</h3>
+      <ul>
+        <li>All event sourcing benefits (audit, replay)</li>
+        <li>Plus loose coupling with external services</li>
+        <li>Rich events internally, thin events externally</li>
+      </ul>
+
+      <h3 style="margin-top: 20px;">Trade-offs</h3>
+      <ul>
+        <li>Most complex approach</li>
+        <li>Two infrastructure pieces (event store + Kafka)</li>
+        <li>Event transformation layer needed</li>
+      </ul>
+
+      <div class="warn-note" style="margin-top: 16px;">
+        <strong>When to use:</strong> You need both event sourcing benefits AND asynchronous cross-service integration. High-value domains with complex audit requirements.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="kicker">Pattern 4</div>
+      <h2>Traditional CRUD (No Events)</h2>
+      <p>Standard database with synchronous REST/GraphQL APIs. No event sourcing, no event streaming.</p>
+      
+      <div style="margin: 20px 0; padding: 16px; background: #f8fafc; border-radius: 8px; font-family: monospace; font-size: 0.85rem;">
+Command → UPDATE database → REST API<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Consumers Query API
+      </div>
+
+      <h3 style="margin-top: 20px;">Benefits</h3>
+      <ul>
+        <li>Simplest approach</li>
+        <li>Well-understood patterns</li>
+        <li>Fast queries (no event replay)</li>
+        <li>Immediate consistency</li>
+      </ul>
+
+      <h3 style="margin-top: 20px;">Trade-offs</h3>
+      <ul>
+        <li>No audit trail (unless added separately)</li>
+        <li>No time travel queries</li>
+        <li>Tight coupling between services</li>
+        <li>Synchronous dependencies</li>
+      </ul>
+
+      <div class="warn-note" style="margin-top: 16px;">
+        <strong>When to use:</strong> Most applications. Use this unless you have specific requirements for audit trails, time travel, or asynchronous integration.
+      </div>
+    </div>
+  </div>
+
+  <section class="section card featured">
+    <div class="kicker">Key Distinctions</div>
+    <h2>Rich Events vs Thin Events</h2>
+    <p>
+      This is a critical but often overlooked distinction. Events used for different purposes have different content.
+    </p>
+
+    <div class="grid two">
+      <div class="sub-card">
+        <h3>Rich Events (Event Sourcing)</h3>
+        <p><strong>Purpose:</strong> Rebuild aggregate state</p>
+        <p><strong>Storage:</strong> Event store (PostgreSQL table)</p>
+        <p><strong>Audience:</strong> Internal to the service</p>
+        <p><strong>Content:</strong> Everything needed to reconstruct state</p>
+        <p><strong>Retention:</strong> Forever (source of truth)</p>
+        
+        <h4 style="margin-top: 16px;">Example</h4>
+        <pre style="font-size: 0.75rem; background: #f8fafc; color: #0f1f33; padding: 12px; border-radius: 6px; overflow-x: auto;"><code>ItemAddedEvent {
+  sku: "SKU-123",
+  quantity: 2,
+  price: 29.99,
+  currency: "GBP",
+  variantDetails: {...},
+  taxCalculation: {...},
+  discounts: [...],
+  inventoryReservationId: "...",
+  warehouseLocation: "..."
+}</code></pre>
+      </div>
+
+      <div class="sub-card">
+        <h3>Thin Events (Event Streaming)</h3>
+        <p><strong>Purpose:</strong> Notify consumers something happened</p>
+        <p><strong>Storage:</strong> Message broker (Kafka topic)</p>
+        <p><strong>Audience:</strong> External services</p>
+        <p><strong>Content:</strong> Just enough to react or query for details</p>
+        <p><strong>Retention:</strong> Days to weeks</p>
+        
+        <h4 style="margin-top: 16px;">Example</h4>
+        <pre style="font-size: 0.75rem; background: #f8fafc; color: #0f1f33; padding: 12px; border-radius: 6px; overflow-x: auto;"><code>OrderConfirmedEvent {
+  orderId: "ORD-1001",
+  customerId: "CUS-8821",
+  totalAmount: 125.50,
+  currency: "GBP"
+}
+
+// Consumers query Order API
+// if they need full details</code></pre>
+      </div>
+    </div>
+
+    <p style="margin-top: 20px;">
+      <strong>Hybrid approach:</strong> Use rich events internally for event sourcing. Transform to thin events when publishing to external message brokers. This gives you both internal flexibility and external loose coupling.
+    </p>
+  </section>
+
+  <section class="section card">
+    <div class="kicker">Decision Framework</div>
+    <h2>Choosing Your Approach</h2>
+    
+    <h3>Start with these questions:</h3>
+    <ol style="margin-top: 12px; line-height: 1.7;">
+      <li><strong>Do you need a complete audit trail?</strong> → Consider event sourcing</li>
+      <li><strong>Do you need time travel queries?</strong> ("What was state on March 15th?") → Consider event sourcing</li>
+      <li><strong>Do you need to rebuild state from history?</strong> → Consider event sourcing</li>
+      <li><strong>Do external services need to react to changes?</strong> → Consider event streaming</li>
+      <li><strong>Do you need asynchronous, loose coupling?</strong> → Consider event streaming</li>
+      <li><strong>Do consumers need custom projections?</strong> → Consider event streaming</li>
+    </ol>
+
+    <div class="grid two" style="margin-top: 24px;">
+      <div>
+        <h3>If you answered "yes" to 1-3 but "no" to 4-6:</h3>
+        <p><strong>Event Sourcing + APIs</strong></p>
+        <p>Get audit and replay benefits without message broker complexity.</p>
+      </div>
+      <div>
+        <h3>If you answered "no" to 1-3 but "yes" to 4-6:</h3>
+        <p><strong>CRUD + Event Streaming</strong></p>
+        <p>Traditional database with Kafka for integration. Most common pattern.</p>
+      </div>
+    </div>
+
+    <div class="grid two" style="margin-top: 16px;">
+      <div>
+        <h3>If you answered "yes" to all:</h3>
+        <p><strong>Event Sourcing + Event Streaming</strong></p>
+        <p>Full combination. Most complex but most powerful for high-value domains.</p>
+      </div>
+      <div>
+        <h3>If you answered "no" to all:</h3>
+        <p><strong>Traditional CRUD</strong></p>
+        <p>Keep it simple. This works for most applications.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section card featured">
+    <div class="kicker">Common Misconceptions</div>
+    <h2>What People Get Wrong</h2>
+    
+    <div style="margin-top: 20px;">
+      <h3>❌ Myth: Event sourcing requires Kafka/Kinesis</h3>
+      <p><strong>Reality:</strong> Event sourcing is a persistence pattern. It works entirely within one service using a database table as the event store. Message brokers are optional, only needed for cross-service integration.</p>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <h3>❌ Myth: Event streaming requires event sourcing</h3>
+      <p><strong>Reality:</strong> Most event-driven systems use traditional CRUD databases and publish change events to Kafka. Event sourcing is not required.</p>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <h3>❌ Myth: Event sourcing events and streaming events are the same</h3>
+      <p><strong>Reality:</strong> Sourcing events are rich (rebuild state). Streaming events are thin (notifications). They serve different purposes and usually have different schemas.</p>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <h3>❌ Myth: Read-side projections require message brokers</h3>
+      <p><strong>Reality:</strong> Internal projections read directly from the event store. Message brokers are only for external consumers in different services.</p>
+    </div>
+  </section>
+
+  <footer style="margin-top: 60px; text-align: center; font-size: 0.9rem; color: var(--muted); padding-bottom: 40px;">
+    <a href="index.html">Back to Event Patterns Index</a> · <a href="event-patterns-overview.html">Conceptual Overview</a>
+  </footer>
+
+</main>
+</body>
+</html>

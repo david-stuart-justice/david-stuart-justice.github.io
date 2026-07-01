@@ -8,34 +8,61 @@
     <priority>1.0</priority>
   </url>
 
-  <!-- Event Sourcing -->
+  <!-- Event Patterns -->
   <url>
-    <loc>https://david-stuart-justice.github.io/event-sourcing/</loc>
+    <loc>https://david-stuart-justice.github.io/event-patterns/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://david-stuart-justice.github.io/event-sourcing/event-sourcing-architecture-guide.html</loc>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-patterns-overview.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://david-stuart-justice.github.io/event-sourcing/axon-framework-research.html</loc>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-streaming-guide.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://david-stuart-justice.github.io/event-sourcing/manual-event-sourcing-research.html</loc>
+    <loc>https://david-stuart-justice.github.io/event-patterns/pattern-independence.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Event Sourcing -->
+  <url>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-sourcing/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-sourcing/event-sourcing-foundations.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://david-stuart-justice.github.io/event-sourcing/greenfield-spring-boot-event-sourcing.html</loc>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-sourcing/spring-boot-package-organization.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://david-stuart-justice.github.io/event-sourcing/comparison.html</loc>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-sourcing/event-sourcing-architecture-guide.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-sourcing/axon-framework-research.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-sourcing/manual-event-sourcing-research.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://david-stuart-justice.github.io/event-patterns/event-sourcing/comparison.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

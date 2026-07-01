@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Event Patterns Research — Architecture Exploration</title>
+  <link rel="stylesheet" href="styles.css">
+</head><body>
+<main class="shell">
+
+  <section class="hero">
+    <h1>Event Patterns Research</h1>
+    <p class="lead">
+      Exploratory research into event patterns in a Spring Boot service, including event sourcing, event streaming, and event-driven architecture. Two implementation paths are examined: using Axon Framework for structure and consistency, or building from scratch with manual control and minimal dependencies.
+    </p>
+  </section>
+
+  <section class="section card featured">
+    <div class="kicker">Core Definitions</div>
+    <h2>What These Patterns Mean</h2>
+    
+    <div class="grid three">
+      <div class="sub-card">
+        <h3>Event Sourcing</h3>
+        <p>A persistence pattern where state is stored as an append-only sequence of events instead of updating current state in place. To get current state, replay all events for that entity.</p>
+        <p style="margin-top: 8px; font-size: 0.9em; color: var(--muted);">Events are the source of truth. Database rows are derived.</p>
+      </div>
+      
+      <div class="sub-card">
+        <h3>Event Streaming</h3>
+        <p>A data transport mechanism where services publish events to durable ordered logs (like Kafka or Kinesis). Other services consume those events independently to build projections or trigger workflows.</p>
+        <p style="margin-top: 8px; font-size: 0.9em; color: var(--muted);">Events move between services. Can be used with or without event sourcing.</p>
+      </div>
+      
+      <div class="sub-card">
+        <h3>Event-Driven Architecture</h3>
+        <p>A system design style where services communicate primarily through asynchronous events rather than synchronous calls. Events represent facts that happened, not commands.</p>
+        <p style="margin-top: 8px; font-size: 0.9em; color: var(--muted);">Services are loosely coupled, reacting to events as they occur.</p>
+      </div>
+    </div>
+
+    <div class="warn-note" style="margin-top: 20px;">
+      <strong>Common confusion:</strong> Event streaming and event sourcing are often conflated but serve different purposes. Streaming moves events between services; sourcing stores state as events. You can use streaming without sourcing.
+    </div>
+  </section>
+
+  <div class="grid auto">
+    <article class="card home">
+      <span class="card-kicker">Start Here</span>
+      <h2 class="card-title">Event Patterns Overview</h2>
+      <p class="card-description">
+        Conceptual comparison of event streaming, event sourcing, and event-driven architecture. Explains the critical difference between rich sourcing events (rebuild state) and thinner streaming events (notify consumers).
+      </p>
+      <ul class="card-features">
+        <li>Pattern definitions and distinctions</li>
+        <li>Event content: sourcing vs streaming</li>
+        <li>When to use each approach</li>
+        <li>Common misconceptions clarified</li>
+      </ul>
+      <a href="event-patterns-overview.html" class="card-link">Read overview</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">Core Concepts</span>
+      <h2 class="card-title">Pattern Independence</h2>
+      <p class="card-description">
+        Event sourcing, event streaming, and event-driven architecture are three independent patterns often confused. Shows all four combinations: sourcing alone, streaming alone, both together, and neither.
+      </p>
+      <ul class="card-features">
+        <li>Why the patterns are independent</li>
+        <li>CRUD + Kafka vs Event Sourcing + APIs</li>
+        <li>Rich events vs thin events explained</li>
+        <li>Decision framework for choosing approaches</li>
+      </ul>
+      <a href="pattern-independence.html" class="card-link">Understand independence</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">Implementation Guide</span>
+      <h2 class="card-title">Event Streaming Guide</h2>
+      <p class="card-description">
+        Practical patterns for designing event payloads, handlers, and integration contracts when using streaming platforms like Kafka, Kinesis, or Pulsar.
+      </p>
+      <ul class="card-features">
+        <li>Event payload design and metadata structure</li>
+        <li>Command vs event distinction</li>
+        <li>Delta updates and canonical state location</li>
+        <li>Sensitive data policies and schema evolution</li>
+      </ul>
+      <a href="event-streaming-guide.html" class="card-link">Read streaming guide</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">Persistence Pattern</span>
+      <h2 class="card-title">Event Sourcing</h2>
+      <p class="card-description">
+        Store state as an append-only sequence of events. Research covering core concepts, architecture patterns, implementation approaches (Axon Framework vs manual), and decision frameworks.
+      </p>
+      <ul class="card-features">
+        <li>Foundations: CQRS, aggregates, performance challenges</li>
+        <li>Package organization and architecture guides</li>
+        <li>Axon Framework and manual implementations</li>
+        <li>Decision matrix for approach selection</li>
+      </ul>
+      <a href="event-sourcing/index.html" class="card-link">Explore event sourcing</a>
+    </article>
+  </div>
+
+  <section class="section card">
+    <div class="kicker">Shared Assumptions</div>
+    <h2>Project Constraints</h2>
+    <div class="grid two">
+      <div class="sub-card">
+        <h3>Scale & Technical Baseline</h3>
+        <ul>
+          <li><strong>Volume:</strong> Moderate transaction volume.</li>
+          <li><strong>Infrastructure:</strong> Container orchestration, message broker, PostgreSQL.</li>
+          <li><strong>Pipeline:</strong> CI/CD automation, container deployments.</li>
+          <li><strong>Stack:</strong> Java 25, Spring Boot 4, Flyway migrations.</li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Core Objectives</h3>
+        <ul>
+          <li><strong>Auditability:</strong> Full history of state changes is mandatory.</li>
+          <li><strong>Decoupling:</strong> Downstream services consume via events.</li>
+          <li><strong>Reliability:</strong> At-least-once delivery to message broker.</li>
+          <li><strong>Maintainability:</strong> Code must be readable by generalist engineers.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-note" style="margin-top: 20px;">
+      <strong>Suggested reading order:</strong> Start with Event Patterns Overview to understand the landscape. Read Event Sourcing Foundations for core concepts. Review Spring Boot Package Organization for code structure. Then explore the Architecture Guide for complete implementation. Finally, compare Axon and Manual approaches using the Decision Matrix.
+    </div>
+  </section>
+
+  <footer style="margin-top: 60px; text-align: center; font-size: 0.9rem; color: var(--muted); padding-bottom: 40px;">
+    &copy; 2025 Event Driven Architecture Research Artifact
+  </footer>
+
+</main>
+</body>
+</html>
