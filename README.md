@@ -8,7 +8,7 @@ A GitHub Pages site for personal research across software architecture and philo
 /
 ├── index.html                 # Root landing page (research discovery hub)
 ├── README.md                  # This file
-├── event-sourcing/            # Event sourcing architecture research
+├── event-patterns/            # Event patterns architecture research
 │   ├── index.html             # Topic landing page
 │   ├── styles.css             # Topic-specific styles
 │   ├── axon-framework-research.html
@@ -23,10 +23,10 @@ A GitHub Pages site for personal research across software architecture and philo
 
 ## Research Topics
 
-### Event Sourcing (`event-sourcing/`)
-Exploratory research into implementing event sourcing in a Spring Boot application. Compares framework-driven (Axon) vs. manual implementation approaches, with focus on CQRS patterns, concurrency control, and production trade-offs.
+### Event Patterns (`event-patterns/`)
+Exploratory research into event patterns in a Spring Boot application, including event sourcing, event streaming, and event-driven integration. Compares framework-driven (Axon) vs. manual implementation approaches, with focus on CQRS patterns, concurrency control, and production trade-offs.
 
-- **Landing page:** `./event-sourcing/index.html`
+- **Landing page:** `./event-patterns/index.html`
 - **Key pages:** Architecture guide, Axon Framework analysis, manual implementation guide, greenfield implementation, comparison matrix
 
 ### Spring Boot Three-Tier Architecture (`spring-boot-three-tier/`)
@@ -75,7 +75,7 @@ Create these minimal files in the new folder:
 </html>
 ```
 
-**`{topic-name}/styles.css`** — Copy from an existing topic folder (e.g., `event-sourcing/styles.css`)
+**`{topic-name}/styles.css`** — Copy from an existing topic folder (e.g., `event-patterns/styles.css`)
 
 ### 3. Update Root Landing Page
 

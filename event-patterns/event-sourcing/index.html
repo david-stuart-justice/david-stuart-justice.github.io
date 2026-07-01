@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Event Sourcing — Research and Implementation Guides</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<main class="shell">
+  <section class="hero">
+    <div class="eyebrow">Event Sourcing</div>
+    <h1>Event Sourcing: Concepts, Architecture, and Implementation</h1>
+    <p class="lead">
+      Event sourcing stores state as an append-only sequence of events. This collection covers conceptual foundations, architecture patterns, implementation approaches (Axon Framework vs manual), and decision frameworks.
+    </p>
+  </section>
+
+  <section class="section card featured">
+    <div class="kicker">What is Event Sourcing?</div>
+    <h2>A Persistence Pattern</h2>
+    <p>
+      Event sourcing is a persistence approach where state is not stored as a current snapshot, but as a complete sequence of events that led to the current state. 
+      To get the current state of an aggregate, you replay all its events from the beginning.
+    </p>
+    <div class="grid two">
+      <div class="sub-card">
+        <h3>Traditional CRUD</h3>
+        <ul>
+          <li>Store current state in database rows</li>
+          <li>Updates overwrite previous values</li>
+          <li>History is lost unless explicitly tracked</li>
+          <li>Simpler for most use cases</li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Event Sourcing</h3>
+        <ul>
+          <li>Store every state change as an event</li>
+          <li>Events are immutable, append-only</li>
+          <li>Complete audit trail by design</li>
+          <li>Adds complexity, use when benefits justify cost</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <h2 style="margin-top: 40px; margin-bottom: 20px;">Research Documents</h2>
+
+  <div class="grid auto">
+    <article class="card home">
+      <span class="card-kicker">Core Concepts</span>
+      <h2 class="card-title">Event Sourcing Foundations</h2>
+      <p class="card-description">
+        Essential event sourcing concepts independent of technology choices: CQRS, aggregates, consistency, performance challenges, and when event sourcing fits.
+      </p>
+      <ul class="card-features">
+        <li>What event sourcing is and when it fits</li>
+        <li>CQRS, aggregates, and consistency boundaries</li>
+        <li>Performance challenges and mitigation strategies</li>
+        <li>Testing philosophy and the outbox pattern</li>
+      </ul>
+      <a href="event-sourcing-foundations.html" class="card-link">Read foundations</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">Code Organization</span>
+      <h2 class="card-title">Spring Boot Package Organization</h2>
+      <p class="card-description">
+        Practical package structure for event-sourced Spring Boot applications. API, application, domain, infrastructure boundaries with clear responsibilities.
+      </p>
+      <ul class="card-features">
+        <li>Transition from Spring Initializr default structure</li>
+        <li>Per-aggregate stream boundaries</li>
+        <li>Package layout for api, application, domain, projection</li>
+        <li>File naming and module organization</li>
+      </ul>
+      <a href="spring-boot-package-organization.html" class="card-link">View package guide</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">End-to-End Implementation</span>
+      <h2 class="card-title">Event Sourcing Architecture Guide</h2>
+      <p class="card-description">
+        Complete implementation walkthrough: event store, write-side flow, projections, outbox pattern, sagas, operations, and migration from CRUD.
+      </p>
+      <ul class="card-features">
+        <li>Event store schema and implementation</li>
+        <li>Write-side and read-side flows with code</li>
+        <li>Outbox pattern and saga coordination</li>
+        <li>Operations, monitoring, and migration strategy</li>
+      </ul>
+      <a href="event-sourcing-architecture-guide.html" class="card-link">Read architecture guide</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">Framework Approach</span>
+      <h2 class="card-title">Axon Framework</h2>
+      <p class="card-description">
+        A complete event sourcing and CQRS framework that provides aggregate loading, concurrency control, and tracking processor management.
+      </p>
+      <ul class="card-features">
+        <li>Automatic state reconstruction from events</li>
+        <li>Built-in concurrency and conflict detection</li>
+        <li>Structural outbox via event store tracking</li>
+        <li>Advanced testing with <code>AggregateTestFixture</code></li>
+      </ul>
+      <a href="axon-framework-research.html" class="card-link">Explore Axon approach</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">Manual Approach</span>
+      <h2 class="card-title">Manual Event Sourcing</h2>
+      <p class="card-description">
+        Building from scratch using Spring Boot, custom event tables, the transactional outbox pattern, and manual aggregate handling.
+      </p>
+      <ul class="card-features">
+        <li>Fully transparent SQL-based implementation</li>
+        <li>Direct control over outbox and relay logic</li>
+        <li>Minimal "magic" and library dependencies</li>
+        <li>Optimistic locking via DB constraints</li>
+      </ul>
+      <a href="manual-event-sourcing-research.html" class="card-link">Explore Manual approach</a>
+    </article>
+
+    <article class="card home">
+      <span class="card-kicker">Decision Framework</span>
+      <h2 class="card-title">Decision Matrix</h2>
+      <p class="card-description">
+        Compare implementation approaches: when to use event patterns at all, and if event sourcing fits, whether to use Axon Framework or build manually.
+      </p>
+      <ul class="card-features">
+        <li>Event patterns applicability assessment</li>
+        <li>Axon vs manual implementation trade-offs</li>
+        <li>Operational burden and team-size considerations</li>
+        <li>Strategic fit for specific domain requirements</li>
+      </ul>
+      <a href="comparison.html" class="card-link">View decision matrix</a>
+    </article>
+  </div>
+
+  <footer style="margin-top: 60px; text-align: center; font-size: 0.9rem; color: var(--muted); padding-bottom: 40px;">
+    <a href="../index.html">Back to Event Patterns Index</a> · <a href="../../index.html">Research Portal Home</a>
+  </footer>
+
+</main>
+</body>
+</html>

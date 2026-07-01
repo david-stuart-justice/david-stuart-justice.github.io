@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Event Patterns Overview — Conceptual Comparison</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="shell">
+  <section class="hero">
+    <div class="eyebrow">Conceptual Overview</div>
+    <h1>Event Patterns: Streaming, Sourcing, and Event-Driven Architecture</h1>
+    <p class="lead">
+      Event streaming, event sourcing, and event-driven architecture are distinct patterns often confused. This guide defines each, explains when to use them, and clarifies common misconceptions. No implementation details—pure concepts.
+    </p>
+  </section>
+
+  <section class="section card featured">
+    <div class="kicker">Pattern Comparison</div>
+    <h2>Event Streaming vs Event Sourcing vs Event-Driven Architecture</h2>
+    <table aria-label="Pattern comparison">
+      <thead>
+        <tr>
+          <th>Pattern</th>
+          <th>Purpose</th>
+          <th>Key Characteristic</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Event Streaming</strong></td>
+          <td>Data transport mechanism</td>
+          <td>Durable logs for moving events between services at scale</td>
+        </tr>
+        <tr>
+          <td><strong>Event Sourcing</strong></td>
+          <td>Persistence pattern</td>
+          <td>Store state as a sequence of events; rebuild current state by replay</td>
+        </tr>
+        <tr>
+          <td><strong>Event-Driven Architecture</strong></td>
+          <td>System design style</td>
+          <td>Services communicate primarily through asynchronous events</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="footer-note">
+      <strong>These patterns are independent.</strong> You can use event streaming without event sourcing (most event-driven systems). You can use event sourcing without event streaming (purely internal persistence + CQRS). Many systems combine both when they need event sourcing for persistence AND cross-service integration.
+    </p>
+  </section>
+
+  <section class="section card featured">
+    <div class="kicker">Critical Distinction</div>
+    <h2>Event Content: Sourcing Events vs Streaming Events</h2>
+    <p>
+      Events used in event sourcing to rebuild state are often richer and more complete than events published to integration streams. This is a common point of confusion.
+    </p>
+    
+    <div class="grid two">
+      <div class="sub-card">
+        <h3>Event Sourcing Events</h3>
+        <p><strong>Purpose:</strong> Reconstruct aggregate state by replay</p>
+        <ul>
+          <li>Must contain all data needed to rebuild the aggregate</li>
+          <li>Often richer with full domain details</li>
+          <li>Scoped to one aggregate's lifecycle</li>
+          <li>Retained forever (source of truth)</li>
+          <li>Example: <code>ItemAdded</code> includes sku, quantity, price, variant details, tax calculation, discounts—everything to rebuild Order state</li>
+        </ul>
+      </div>
+      <div class="sub-card">
+        <h3>Event Streaming Events</h3>
+        <p><strong>Purpose:</strong> Notify consumers that something happened</p>
+        <ul>
+          <li>Contain just enough data for consumers to react</li>
+          <li>Often thinner, notification-focused</li>
+          <li>Cross-service integration</li>
+          <li>Shorter retention (days/weeks)</li>
+          <li>Example: <code>OrderConfirmed</code> includes orderId, customerId, total—consumers query Order API if they need full details</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 24px;">In Practice</h3>
+    <ul style="margin-top: 12px;">
+      <li><strong>Event-sourced systems</strong> often publish their domain events to a stream, but may strip internal state details, enrich with context, or transform into different event types for different bounded contexts.</li>
+      <li><strong>Streaming-first systems</strong> (state in database, events for integration) publish thinner events because the source of truth is the database, not the event log.</li>
+      <li><strong>Hybrid approach:</strong> Use rich events internally for event sourcing, publish derived notification events to external streams for integration.</li>
+    </ul>
+
+    <div class="warn-note" style="margin-top: 16px;">
+      Do not assume event sourcing events and integration events have the same schema. They serve different purposes and often need different content.
+    </div>
+  </section>
+
+  <footer style="margin-top: 60px; text-align: center; font-size: 0.9rem; color: var(--muted); padding-bottom: 40px;">
+    <a href="index.html">Back to Event Patterns Index</a> · <a href="event-streaming-guide.html">Event Streaming Implementation Guide</a>
+  </footer>
+
+</main>
+</body>
+</html>

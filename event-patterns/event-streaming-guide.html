@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Event Streaming Guide — Implementation Patterns</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<main class="shell">
+  <section class="hero">
+    <div class="eyebrow">Implementation Guide</div>
+    <h1>Event Streaming: Practical Patterns and Design Choices</h1>
+    <p class="lead">
+      Concrete guidance for designing event payloads, handlers, and integration patterns when using event streaming platforms like Kafka, Pulsar, Kinesis, or Event Hubs.
+    </p>
+  </section>
+
+  <section class="section card featured">
+    <div class="kicker">Foundations</div>
+    <h2>The Basic Flow</h2>
+    <p>
+      A service processes a command, validates it, updates its database, and publishes an event to a stream.
+      Other services subscribe to that stream and react by updating their own models or triggering workflows.
+    </p>
+    <pre role="region" aria-label="Flow diagram">Command          Write Service       Event Stream        Consumer Services
+   |                  |                    |                      |
+   |--CreateOrder---->|                    |                      |
+   |                  |--validate--------  |                      |
+   |                  |--save to DB-----   |                      |
+   |                  |--OrderCreated----->|                      |
+   |                  |                    |----OrderCreated----->|
+   |<----200 OK-------|                    |                      |
+   |                  |                    |                      |--update projection
+   |                  |                    |                      |--trigger workflow</pre>
+    <p class="footer-note">
+      Events are published after the database commit succeeds. Consumers receive events in partition order and process them independently.
+    </p>
+  </section>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="kicker">Core Component</div>
+      <h2>Event Stream</h2>
+      <p>
+        An ordered, append-only log partitioned by a key. Kafka, Pulsar, Kinesis, and Event Hubs are common platforms.
+      </p>
+      <ul>
+        <li>Ordered per partition key (for example per orderId).</li>
+        <li>Consumers track their offset and can replay from earlier positions.</li>
+        <li>Retention is time-based or size-based; older events may be deleted or archived.</li>
+      </ul>
+      <div class="pill-row">
+        <span class="pill">ordered</span>
+        <span class="pill">append-only</span>
+        <span class="pill">partitioned</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="kicker">Core Component</div>
+      <h2>Handler</h2>
+      <p>
+        Code in a consumer service that processes one event. Handlers are not part of the event payload.
+        They run asynchronously in services that subscribe to the stream.
+      </p>
+      <ul>
+        <li>Updates a read model or projection.</li>
+        <li>Triggers workflows, alerts, or external integrations.</li>
+        <li>Must be idempotent because platforms can deliver duplicates.</li>
+      </ul>
+      <div class="warn-note">Events describe what happened. Handlers decide what to do about it.</div>
+    </div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="kicker">Design</div>
+      <h2>Event Payload Design</h2>
+      <p>
+        Include immutable facts about what happened. Provide enough context for consumers to act without querying other services for every event.
+        Exclude mutable data, full object graphs, and confidential content.
+      </p>
+      <pre role="region" aria-label="Example event JSON">{
+  "eventId": "7a81d45e-8ef8-4f64-8f2f-eef2dd4ef9db",
+  "eventType": "OrderConfirmed",
+  "timestamp": "2026-07-01T10:25:00Z",
+  "schemaVersion": 1,
+  "correlationId": "req-12f4",
+  "causationId": "cmd-99d1",
+  "payload": {
+    "orderId": "ORD-1001",
+    "customerId": "CUS-8821",
+    "totalAmount": 125.50,
+    "currency": "GBP",
+    "confirmedAt": "2026-07-01T10:24:55Z"
+  }
+}</pre>
+      <p class="footer-note">
+        Line items are not included because the Fulfillment service queries the Order API when it needs full details.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="kicker">Structure</div>
+      <h2>Metadata vs Payload</h2>
+      <ul>
+        <li>Metadata supports tracing, versioning, routing, and idempotency.</li>
+        <li>Payload carries business facts used by domain and consumers.</li>
+        <li>Broker metadata can add topic, partition, offset, and key.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 style="margin-top: 40px; margin-bottom: 20px;">Design Choices</h2>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="kicker">Design Choice</div>
+      <h2>Command Input vs Event Output</h2>
+      <p>
+        A REST API may accept a large JSON payload. That is command input, not the event payload.
+        Events carry targeted facts needed by downstream consumers.
+      </p>
+      <div class="warn-note">Do not copy the full command payload into events. This creates tight coupling between producer and all consumers, bloats the stream, and makes schema evolution difficult.</div>
+      <ul>
+        <li>Command: full create/update request with validation rules applied synchronously.</li>
+        <li>Event: immutable facts about what changed, published after successful commit.</li>
+        <li>Example: CreateOrder command with 20 line items emits OrderCreated with orderId, customerId, and total only.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="kicker">Design Choice</div>
+      <h2>Delta Updates</h2>
+      <p>
+        Publish specific change events rather than full object snapshots after every modification.
+      </p>
+      <div class="warn-note">Prefer business events over generic patch events. Business events (ShippingAddressChanged) preserve domain intent and meaning. Patch events (FieldUpdated) are purely structural and force consumers to interpret low-level changes.</div>
+      <ul>
+        <li>Business events: ShippingAddressChanged, PaymentMethodUpdated (recommended).</li>
+        <li>Generic patch events: OrderDetailsPatched (acceptable for low-value fields only).</li>
+        <li>Include version or revision number to detect stale updates.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div class="kicker">Design Choice</div>
+      <h2>Canonical State Location</h2>
+      <p>
+        For systems with large domain objects and selective events, keep the canonical latest state in the write database.
+        Events then carry integration facts, not full state.
+      </p>
+      <ul>
+        <li><strong>State-first (common):</strong> write store is authoritative, events are change notifications.</li>
+        <li><strong>Event-sourced (complex):</strong> event store is authoritative, state rebuilt from events.</li>
+        <li><strong>Hybrid:</strong> write store for operations, events for workflows and read projections.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="kicker">Design Choice</div>
+      <h2>Sensitive Data Policy</h2>
+      <p>
+        Events are durable, replicated, and consumed by multiple services. Deletion is difficult or impossible without breaking audit integrity.
+      </p>
+      <ul>
+        <li>Exclude confidential data (payment details, passwords, personal identifiers) by default.</li>
+        <li>Use reference IDs instead of full sensitive content.</li>
+        <li>If inclusion is unavoidable, encrypt payload fields and enforce strict access controls.</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer style="margin-top: 60px; text-align: center; font-size: 0.9rem; color: var(--muted); padding-bottom: 40px;">
+    <a href="index.html">Back to Event Patterns Index</a> · <a href="event-patterns-overview.html">Conceptual Overview</a>
+  </footer>
+
+</main>
+</body>
+</html>
